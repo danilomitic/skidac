@@ -21,18 +21,22 @@ from tkinter import filedialog
 
 from PIL import Image, ImageTk
 
-from . import core, draw
+from . import core, draw, sajt
 from .theme import (CRVENA, FAM, FAM_B, FAM_N, MENTA, MENTA_HI, TXT, TXT2,
                     TXT3, izaberi_fontove, postavi_skalu, s)
 from .widgets import (Cip, Dugme, Element, Polje, Segment, Traka, nalepnica,
                       ocisti_kes, tekst)
 
 PLATFORME = {
-    "youtube":   ("YouTube", "Video, Shorts, plejliste", draw.ikona_youtube,
+    "youtube":   ("YouTube", "Video, zvuk ili prepis govora", draw.ikona_youtube,
                   "https://www.youtube.com/watch?v=…"),
     "instagram": ("Instagram", "Reels, objave, IGTV", draw.ikona_instagram,
                   "https://www.instagram.com/reel/…"),
+    "sajt":      ("Sajt", "Ceo sajt za čitanje bez interneta", draw.ikona_sajt,
+                  "https://primer.rs"),
 }
+
+STRANA = (50, 200, 500, 1500)          # ponudjene granice broja strana
 
 
 class KarticaPlatforme(Element):
@@ -98,11 +102,13 @@ class App(tk.Tk):
         self.info = None
         self.url = ""
         self.formati = []
+        self.jezici = []
         self.tip = "mp4"
         self.kvalitet = None
         self.folder = core.podrazumevani_folder()
         self.kolacici = False
         self.skida = False
+        self._stani = False
         self.poruka_uvod = ""
         self.red = queue.Queue()
 
@@ -272,12 +278,24 @@ class App(tk.Tk):
 
     def prikazi(self, url, info):
         self.url, self.info = url, info
-        self.formati = core.rezolucije(info)
         self.skida = False
-        self.tip = "mp4"
-        self.kvalitet = self.formati[0][1]
         self.poruka_uvod = ""
+        if self.izvor == "sajt":
+            self.tip = "sajt"
+            self.kvalitet = STRANA[1]
+        else:
+            self.formati = core.rezolucije(info)
+            self.jezici = core.jezici_titlova(info)
+            self.tip = "mp4"
+            self.kvalitet = self.formati[0][1]
         self._crtaj_link()
+
+    def _opcije_formata(self):
+        """Treca opcija — prepis — ima smisla samo tamo gde ima titlova."""
+        osnovne = [("MP4  ·  video", "mp4"), ("MP3  ·  zvuk", "mp3")]
+        if self.izvor == "youtube":
+            osnovne.append(("TXT  ·  prepis", "txt"))
+        return osnovne
 
     def _raspored(self):
         """Sve koordinate unapred — panel mora u sliku pre nego što se crta."""
@@ -311,14 +329,21 @@ class App(tk.Tk):
         redovi = math.ceil(len(self._stavke()) / 4)
 
         y = r["ky"] + up
-        r["y_slicica"] = y
-        y += r["th"] + s(22)
-        r["y_linija"] = y
-        y += s(20)
-        r["y_nal_format"] = y
-        y += s(16)
-        r["y_segment"] = y
-        y += s(42) + s(20)
+        if self.izvor == "sajt":
+            # sajt nema sličicu ni izbor formata — samo naslov i koliko strana
+            r["y_naslov"] = y
+            y += s(52)
+            r["y_linija"] = y
+            y += s(20)
+        else:
+            r["y_slicica"] = y
+            y += r["th"] + s(22)
+            r["y_linija"] = y
+            y += s(20)
+            r["y_nal_format"] = y
+            y += s(16)
+            r["y_segment"] = y
+            y += s(42) + s(20)
         r["y_nal_kval"] = y
         y += s(16)
         r["y_cipovi"] = y
@@ -405,6 +430,9 @@ class App(tk.Tk):
     # ============================================= kartica sa klipom
 
     def _crtaj_karticu(self, r):
+        if self.izvor == "sajt":
+            return self._kartica_sajta(r)
+
         p, baza, info = self.platno, self.baza, self.info
         ux, uw = r["ux"], r["uw"]
 
@@ -434,10 +462,11 @@ class App(tk.Tk):
         p.create_line(ux, r["y_linija"], ux + uw, r["y_linija"],
                       fill="#22453a")
 
+        opcije = self._opcije_formata()
         nalepnica(p, ux, r["y_nal_format"], "Format")
-        self.segment = Segment(p, baza, ux, r["y_segment"], s(296), s(42),
-                               [("MP4  ·  video", "mp4"),
-                                ("MP3  ·  zvuk", "mp3")], self._promeni_tip)
+        self.segment = Segment(p, baza, ux, r["y_segment"],
+                               s(140) * len(opcije), s(42), opcije,
+                               self._promeni_tip)
 
         self.nal_kval_id = nalepnica(p, ux, r["y_nal_kval"], "Rezolucija")
         self.cip_raspored = (ux, r["y_cipovi"], r["cip_w"], r["cip_h"])
@@ -459,6 +488,38 @@ class App(tk.Tk):
         if not core.FFMPEG:
             self._status("⚠  Nema ffmpeg-a — MP3 i 1080p+ neće raditi.", CRVENA)
 
+    def _kartica_sajta(self, r):
+        """Sajt nema format ni rezoluciju — bira se samo dokle da ide."""
+        p, baza, info = self.platno, self.baza, self.info
+        ux, uw = r["ux"], r["uw"]
+
+        tekst(p, ux, r["y_naslov"], core.skrati(info["naslov"], 70),
+              (FAM_B, 12), TXT, sirina=uw)
+        tekst(p, ux, r["y_naslov"] + s(26), info["domen"], (FAM, 9), TXT3)
+        p.create_line(ux, r["y_linija"], ux + uw, r["y_linija"], fill="#22453a")
+
+        self.nal_kval_id = nalepnica(p, ux, r["y_nal_kval"], "Najviše strana")
+        self.cip_raspored = (ux, r["y_cipovi"], r["cip_w"], r["cip_h"])
+        self.cipovi = []
+        self._napuni_cipove()
+
+        self._red_foldera(r)
+        self.dug_skini = Dugme(p, baza, ux, r["y_dugme"], uw, s(50),
+                               "Skini sajt", self.skini, stil="glavno",
+                               font=(FAM_B, 12))
+        self.traka = (Traka(p, baza, ux, r["y_traka"], uw, s(6))
+                      if self.skida else None)
+        self.napredak_id = tekst(p, ux, r["y_napredak"], "", (FAM, 9), TXT2,
+                                 sirina=uw)
+
+    def _red_foldera(self, r):
+        p, ux, uw = self.platno, r["ux"], r["uw"]
+        nalepnica(p, ux, r["y_folder"] + s(4), "Čuvam u")
+        self.folder_id = tekst(p, ux + s(70), r["y_folder"] + s(3),
+                               self._kratak_put(), (FAM, 9), TXT2)
+        self._veza(ux + uw, r["y_folder"] + s(3), "Promeni",
+                   self._izaberi_folder, sidro="ne")
+
     def _slicica_prazna(self):
         x, y, w, h = self.slicica_box
         self.sl_slicica = ImageTk.PhotoImage(
@@ -473,13 +534,18 @@ class App(tk.Tk):
             return self._status(greska, CRVENA)
         self.dug_proveri.ukljuci(False)
         self.dug_proveri.natpis("Čitam…")
-        self._status("Tražim podatke o klipu…")
+        self._status("Otvaram sajt…" if self.izvor == "sajt"
+                     else "Tražim podatke o klipu…")
         threading.Thread(target=self._citaj, args=(url,), daemon=True).start()
 
     def _citaj(self, url):
         try:
-            self.red.put(("info", (url, core.procitaj(url, self.izvor,
-                                                      self.kolacici))))
+            if self.izvor == "sajt":
+                podaci = sajt.naslov_i_domen(url)
+                self.red.put(("info", (podaci["url"], podaci)))
+            else:
+                self.red.put(("info", (url, core.procitaj(url, self.izvor,
+                                                          self.kolacici))))
         except Exception as e:
             self.red.put(("greska_info", core.poruka(e)))
 
@@ -496,9 +562,20 @@ class App(tk.Tk):
     # ============================================= izbori
 
     def _stavke(self):
+        if self.tip == "sajt":
+            return [(f"{n} strana", n) for n in STRANA]
         if self.tip == "mp4":
             return list(self.formati)
+        if self.tip == "txt":
+            return list(self.jezici) or [("Nema titlova", None)]
         return [(f"{b} kbps", b) for b in core.BITRATE]
+
+    def _podrazumevani_kvalitet(self, stavke):
+        if self.tip == "mp3":
+            return 192
+        if self.tip == "sajt":
+            return STRANA[1]
+        return stavke[0][1]
 
     def _napuni_cipove(self):
         for c in self.cipovi:
@@ -506,7 +583,7 @@ class App(tk.Tk):
         self.cipovi = []
         x0, y0, cw, ch = self.cip_raspored
         stavke = self._stavke()
-        self.kvalitet = stavke[0][1] if self.tip == "mp4" else 192
+        self.kvalitet = self._podrazumevani_kvalitet(stavke)
 
         for i, (labela, vrednost) in enumerate(stavke):
             c = Cip(self.platno, self.baza,
@@ -520,12 +597,24 @@ class App(tk.Tk):
         for c in self.cipovi:
             c.izaberi(c.vrednost == vrednost)
 
+    NASLOVI_KVALITETA = {
+        "mp4": "Rezolucija",
+        "mp3": "Bitrate zvuka",
+        "txt": "Jezik prepisa",
+        "sajt": "Najviše strana",
+    }
+
     def _promeni_tip(self, vrednost):
         self.tip = vrednost
         self.platno.itemconfig(
             self.nal_kval_id,
-            text="REZOLUCIJA" if vrednost == "mp4" else "BITRATE ZVUKA")
+            text=self.NASLOVI_KVALITETA[vrednost].upper())
         self._napuni_cipove()
+        if vrednost == "txt" and not self.jezici:
+            self._napredak("Ovaj video nema titlove, pa nema šta da se prepiše.",
+                           CRVENA)
+        else:
+            self._napredak("")
 
     def _kratak_put(self):
         delovi = self.folder.replace("/", "\\").split("\\")
@@ -540,29 +629,68 @@ class App(tk.Tk):
     # ============================================= skidanje
 
     def skini(self):
+        if self.skida:
+            return self._zaustavi()
         if not os.path.isdir(self.folder):
             return self._napredak("Taj folder ne postoji.", CRVENA)
-        if self.tip == "mp3" and not core.FFMPEG:
-            return self._napredak("Za MP3 je potreban ffmpeg.", CRVENA)
+        if self.tip in ("mp3", "txt") and not core.FFMPEG:
+            return self._napredak("Za ovo je potreban ffmpeg.", CRVENA)
+        if self.tip == "txt" and not self.kvalitet:
+            return self._napredak("Ovaj video nema titlove.", CRVENA)
 
         self.skida = True
+        self._stani = False
         self._crtaj_link()                      # kartica se produzi za traku
-        self.dug_skini.ukljuci(False)
-        self.dug_skini.natpis("Skidam…")
+        self.dug_skini.natpis("Zaustavi")
         self.dug_proveri.ukljuci(False)
         self._napredak("Krećem…")
         threading.Thread(target=self._skidaj, daemon=True).start()
 
+    def _zaustavi(self):
+        self._stani = True
+        self.dug_skini.ukljuci(False)
+        self.dug_skini.natpis("Zaustavljam…")
+        self._napredak("Prekidam…")
+
     def _skidaj(self):
         try:
-            core.skini(self.url, self.izvor, self.folder, self.tip,
-                       self.kvalitet, self.kolacici,
-                       na_napredak=self._kuka, na_obradu=self._kuka_obrada)
-            self.red.put(("gotovo", None))
+            if self.izvor == "sajt":
+                self._skidaj_sajt()
+            elif self.tip == "txt":
+                put = core.skini_transkript(
+                    self.url, self.izvor, self.folder, self.kvalitet,
+                    self.kolacici, na_napredak=self._kuka)
+                self.red.put(("gotovo", os.path.basename(put)))
+            else:
+                core.skini(self.url, self.izvor, self.folder, self.tip,
+                           self.kvalitet, self.kolacici,
+                           na_napredak=self._kuka, na_obradu=self._kuka_obrada)
+                self.red.put(("gotovo", None))
+        except sajt.Zaustavljeno:
+            self.red.put(("prekinuto", None))
+        except core.Prekid:
+            self.red.put(("prekinuto", None))
         except Exception as e:
             self.red.put(("greska", core.poruka(e)))
 
+    def _skidaj_sajt(self):
+        preuzimac = sajt.Preuzimac(
+            self.url, self.folder, najvise_strana=self.kvalitet,
+            na_napredak=self._kuka_sajt, stani=lambda: self._stani)
+        ishod = preuzimac.kreni()
+        self.red.put(("gotov_sajt", ishod))
+
+    def _kuka_sajt(self, strana, fajlova, u_redu, url):
+        pct = min(99, strana / max(1, self.kvalitet) * 100)
+        ime = url.split("/")[-1] or "index"
+        self.red.put(("napredak", (
+            pct,
+            f"{strana} strana   ·   {fajlova} fajlova   ·   "
+            f"{u_redu} u redu   ·   {core.skrati(ime, 34)}")))
+
     def _kuka(self, d):
+        if self._stani:
+            raise core.Prekid()
         if d["status"] == "downloading":
             ukupno = d.get("total_bytes") or d.get("total_bytes_estimate")
             gotovo = d.get("downloaded_bytes") or 0
@@ -608,12 +736,27 @@ class App(tk.Tk):
                 elif vrsta == "gotovo":
                     if self.traka:
                         self.traka.postavi(100)
-                    self._napredak("✓  Gotovo — fajl je u folderu.", MENTA)
+                    self._napredak("✓  Gotovo — " + (podatak or "fajl") +
+                                   " je u folderu.", MENTA)
                     self._odblokiraj()
-                    try:
-                        os.startfile(self.folder)
-                    except OSError:
-                        pass
+                    self._otvori(self.folder)
+
+                elif vrsta == "gotov_sajt":
+                    if self.traka:
+                        self.traka.postavi(100)
+                    poruka = (f"✓  Gotovo — {podatak['strana']} strana i "
+                              f"{podatak['fajlova']} fajlova.")
+                    if podatak["preskoceno"]:
+                        poruka += (f"  Preskočeno {podatak['preskoceno']} "
+                                   "(robots.txt ili greška).")
+                    self._napredak(poruka, MENTA)
+                    self._odblokiraj()
+                    self._otvori(podatak["folder"])
+
+                elif vrsta == "prekinuto":
+                    self._napredak("Zaustavljeno — što je skinuto ostaje.",
+                                   TXT2)
+                    self._odblokiraj()
 
                 elif vrsta == "greska":
                     self._napredak(podatak, CRVENA)
@@ -637,9 +780,17 @@ class App(tk.Tk):
         self.sl_slicica = ImageTk.PhotoImage(podloga)
         self.platno.itemconfig(self.slicica_id, image=self.sl_slicica)
 
+    def _otvori(self, folder):
+        try:
+            os.startfile(folder)
+        except OSError:
+            pass
+
     def _odblokiraj(self):
+        self.skida = False
+        self._stani = False
         self.dug_skini.ukljuci(True)
-        self.dug_skini.natpis("Skini")
+        self.dug_skini.natpis("Skini sajt" if self.izvor == "sajt" else "Skini")
         self.dug_proveri.ukljuci(True)
 
     def _status(self, sadrzaj, boja=TXT3):

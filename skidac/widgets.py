@@ -348,4 +348,7 @@ class Polje:
         self.entry.insert(0, v)
 
     def fokusiraj(self):
-        self.entry.focus_set()
+        try:
+            self.entry.focus_set()
+        except tk.TclError:
+            pass          # ekran je pregradjen pre nego sto je fokus stigao

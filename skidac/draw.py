@@ -217,6 +217,30 @@ def ikona_youtube(velicina):
     return _ikone[kljuc]
 
 
+def ikona_sajt(velicina):
+    """Globus — meridijani i paralele u mentol krugu."""
+    kljuc = ("sajt", velicina)
+    if kljuc in _ikone:
+        return _ikone[kljuc]
+    u = velicina * SS
+    im = Image.new("RGBA", (u, u), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([0, 0, u - 1, u - 1], radius=int(u * 0.30),
+                        fill=(46, 200, 150, 255))
+
+    b, lw = (255, 255, 255, 255), max(1, int(u * 0.045))
+    a, z = u * 0.24, u * 0.76
+    d.ellipse([a, a, z, z], outline=b, width=lw)
+    d.line([(a, u * 0.5), (z, u * 0.5)], fill=b, width=lw)
+    d.line([(u * 0.5, a), (u * 0.5, z)], fill=b, width=lw)
+    # dve elipse daju utisak zakrivljenih meridijana
+    for sirina in (0.16, 0.30):
+        d.ellipse([u * (0.5 - sirina), a, u * (0.5 + sirina), z],
+                  outline=b, width=max(1, int(lw * 0.8)))
+    _ikone[kljuc] = im.resize((velicina, velicina), Image.LANCZOS)
+    return _ikone[kljuc]
+
+
 def ikona_instagram(velicina):
     kljuc = ("ig", velicina)
     if kljuc in _ikone:
