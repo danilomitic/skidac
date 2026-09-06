@@ -22,3 +22,8 @@ build.bat
 
 `build.bat` ocekuje `ffmpeg.exe` u istom folderu (Windows build sa
 https://www.gyan.dev/ffmpeg/builds/). Gotov `.exe` je u `dist/`.
+
+## Instalacija
+
+`install.bat` kopira `dist\Skidac.exe` u `%LOCALAPPDATA%\Programs\Skidac`
+i pravi precice na Desktopu i u Start meniju.
