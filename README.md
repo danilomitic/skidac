@@ -13,6 +13,17 @@ Desktop aplikacija za Windows — skida video sa YouTube-a i Instagrama kao MP4 
 Instagram objave koje traze prijavu: cekiraj opciju za kolacice iz Chrome-a
 (moras biti ulogovan na Instagram u Chrome-u).
 
+## Kako je slozeno
+
+```
+app.py              ulazna tacka (DPI + pokretanje)
+skidac/theme.py     boje, fontovi, skaliranje na DPI
+skidac/draw.py      zaobljene pozadine i ikonice (crta se Pillow-om)
+skidac/widgets.py   dugme, cip, segment, polje, traka, kartica
+skidac/core.py      sve oko yt-dlp i fajlova, bez ijednog widgeta
+skidac/gui.py       dva ekrana i njihova logika
+```
+
 ## Build
 
 ```

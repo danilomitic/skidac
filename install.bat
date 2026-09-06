@@ -10,9 +10,18 @@ if not exist "dist\Skidac.exe" (
   exit /b 1
 )
 
+REM Windows drzi .exe zakljucan par sekundi posle gasenja - probaj vise puta
 taskkill /IM Skidac.exe /F >nul 2>&1
 if not exist "%APP%" mkdir "%APP%"
-copy /Y "dist\Skidac.exe" "%APP%\Skidac.exe" >nul
+for /L %%i in (1,1,10) do (
+  copy /Y "dist\Skidac.exe" "%APP%\Skidac.exe" >nul 2>&1
+  if not errorlevel 1 goto kopirano
+  ping -n 3 127.0.0.1 >nul
+)
+echo Ne mogu da prepisem %APP%\Skidac.exe - zatvori aplikaciju pa probaj opet.
+pause
+exit /b 1
+:kopirano
 copy /Y "icon.ico" "%APP%\icon.ico" >nul
 
 powershell -NoProfile -Command ^
