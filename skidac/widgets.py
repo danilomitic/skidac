@@ -279,7 +279,6 @@ class Polje:
     def __init__(self, platno, baza, x, y, w, h, nagovestaj=""):
         self.p, self.nagovestaj = platno, nagovestaj
         self.x, self.y, self.w, self.h = x, y, w, h
-        self.prazno = False
         self.r = h // 2
 
         self.mirna = staklo(baza, x, y, w, h, self.r, belina=0.09, ivica=0.20)
@@ -289,20 +288,28 @@ class Polje:
         self.slika_id = platno.create_image(x, y, anchor="nw",
                                             image=self.sl_mirna)
 
-        self.entry = tk.Entry(platno, bg=self._uzorak(self.mirna), fg=TXT,
-                              font=(FAM, 10), relief="flat", bd=0,
-                              insertbackground=MENTA, highlightthickness=0,
+        self.vrednost = tk.StringVar()
+        self.entry = tk.Entry(platno, textvariable=self.vrednost, fg=TXT,
+                              bg=self._uzorak(self.mirna), font=(FAM, 10),
+                              relief="flat", bd=0, insertbackground=MENTA,
+                              highlightthickness=0,
                               disabledbackground=self._uzorak(self.mirna))
         self.prozor_id = platno.create_window(
             x + s(16), y + h // 2, anchor="w", window=self.entry,
             width=w - s(32), height=h - s(16))
 
+        # Nagovestaj je zaseban natpis PREKO polja, a ne tekst u njemu.
+        # Dok je bio tekst u polju, kucanje se meshalo sa njim i ostajali su
+        # komadi nagovestaja u linku.
+        self.natpis = tk.Label(self.entry, text=nagovestaj, fg=TXT3,
+                               bg=self._uzorak(self.mirna), font=(FAM, 10),
+                               bd=0, cursor="xterm")
+        self.natpis.bind("<Button-1>", lambda _e: self.entry.focus_set())
+
         self.entry.bind("<FocusIn>", self._fokus_in)
         self.entry.bind("<FocusOut>", self._fokus_out)
-        self.entry.bind("<Key>", self._taster)
-        self.entry.bind("<<Paste>>", lambda _e: self._obrisi_nagovestaj())
-        if nagovestaj:
-            self._nagovesti()
+        self.vrednost.trace_add("write", self._osvezi_nagovestaj)
+        self._osvezi_nagovestaj()
 
     @staticmethod
     def _uzorak(im):
@@ -312,43 +319,33 @@ class Polje:
         r, g, b = sred.resize((1, 1)).getpixel((0, 0))
         return f"#{r:02x}{g:02x}{b:02x}"
 
-    def _nagovesti(self):
-        self.entry.delete(0, "end")
-        self.entry.insert(0, self.nagovestaj)
-        self.entry.config(fg=TXT3)
-        self.prazno = True
+    def _osvezi_nagovestaj(self, *_):
+        """Nagovestaj se vidi samo dok je polje prazno."""
+        if not self.nagovestaj:
+            return
+        if self.vrednost.get():
+            self.natpis.place_forget()
+        else:
+            self.natpis.place(x=1, rely=0.5, anchor="w")
 
-    def _obrisi_nagovestaj(self):
-        if self.prazno:
-            self.entry.delete(0, "end")
-            self.entry.config(fg=TXT)
-            self.prazno = False
-
-    def _taster(self, e):
-        if self.prazno and e.keysym not in (
-                "Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L",
-                "Alt_R", "Tab", "Escape", "Caps_Lock"):
-            self._obrisi_nagovestaj()
+    def _boja(self, slika):
+        boja = self._uzorak(slika)
+        self.entry.config(bg=boja)
+        self.natpis.config(bg=boja)
 
     def _fokus_in(self, _e):
-        if self.prazno:
-            self.entry.icursor(0)
         self.p.itemconfig(self.slika_id, image=self.sl_aktivna)
-        self.entry.config(bg=self._uzorak(self.aktivna))
+        self._boja(self.aktivna)
 
     def _fokus_out(self, _e):
-        if self.nagovestaj and not self.entry.get().strip():
-            self._nagovesti()
         self.p.itemconfig(self.slika_id, image=self.sl_mirna)
-        self.entry.config(bg=self._uzorak(self.mirna))
+        self._boja(self.mirna)
 
     def get(self):
-        return "" if self.prazno else self.entry.get()
+        return self.vrednost.get()
 
     def postavi(self, v):
-        self._obrisi_nagovestaj()
-        self.entry.delete(0, "end")
-        self.entry.insert(0, v)
+        self.vrednost.set(v)
 
     def fokusiraj(self):
         try:
