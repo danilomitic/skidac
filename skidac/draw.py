@@ -7,8 +7,10 @@ pozadine ISPOD njega zamuti i posvetli. To je pravo staklo, ne imitacija —
 panel stvarno pokazuje ono što je iza njega.
 """
 
+import ctypes
 import os
 import sys
+import winreg
 
 from PIL import (Image, ImageDraw, ImageEnhance, ImageFilter, ImageGrab,
                    ImageTk)
@@ -18,7 +20,95 @@ from .theme import DUBINA, MENTA, SMARAGD, TIRKIZ, ZELENA, hx
 SS = 4              # supersampling za glatke ivice
 _poz_kes = {}
 _ikone = {}
-_ekran = None       # snimak radne povrsine ispod prozora
+_ekran = None       # snimak radne povrsine (rezerva ako tapeta ne procita)
+_tapeta = None      # (kljuc, slika preko celog ekrana)
+
+
+# ---------------------------------------------------------------- tapeta
+
+def _put_tapete():
+    """Putanja do slike koja je trenutno na radnoj povrsini."""
+    bafer = ctypes.create_unicode_buffer(520)
+    # SPI_GETDESKWALLPAPER = 0x0073
+    if ctypes.windll.user32.SystemParametersInfoW(0x0073, 520, bafer, 0):
+        if bafer.value and os.path.isfile(bafer.value):
+            return bafer.value
+    # Windows drzi i prekodiranu kopiju — nju vraca kad je original nedostupan
+    rezerva = os.path.join(os.environ.get("APPDATA", ""), "Microsoft",
+                           "Windows", "Themes", "TranscodedWallpaper")
+    return rezerva if os.path.isfile(rezerva) else None
+
+
+def _stil_tapete():
+    """Kako Windows razvlaci tapetu: popuni / uklopi / rastegni / slozi."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                            r"Control Panel\Desktop") as k:
+            stil = winreg.QueryValueEx(k, "WallpaperStyle")[0]
+            slaganje = winreg.QueryValueEx(k, "TileWallpaper")[0]
+    except OSError:
+        return "popuni"
+    if str(slaganje) == "1":
+        return "slozi"
+    return {"10": "popuni", "22": "popuni", "6": "uklopi",
+            "2": "rastegni", "0": "centriraj"}.get(str(stil), "popuni")
+
+
+def kljuc_tapete():
+    """Sitan otisak — po njemu se vidi da je korisnik promenio tapetu."""
+    put = _put_tapete()
+    if not put:
+        return None
+    try:
+        return (put, os.path.getmtime(put), _stil_tapete())
+    except OSError:
+        return (put, 0, _stil_tapete())
+
+
+def tapeta(w, h):
+    """Tapeta razvucena preko celog ekrana, onako kako je Windows prikazuje."""
+    global _tapeta
+    kljuc = kljuc_tapete()
+    if kljuc is None:
+        return None
+    if _tapeta and _tapeta[0] == kljuc and _tapeta[1].size == (w, h):
+        return _tapeta[1]
+
+    try:
+        slika = Image.open(kljuc[0]).convert("RGB")
+    except Exception:
+        return None
+
+    stil = kljuc[2]
+    platno = Image.new("RGB", (w, h), (0, 0, 0))
+    if stil == "popuni":
+        platno = uklopi(slika, w, h)
+    elif stil == "rastegni":
+        platno = slika.resize((w, h), Image.LANCZOS)
+    elif stil == "uklopi":
+        odnos = min(w / slika.width, h / slika.height)
+        nova = slika.resize((max(1, int(slika.width * odnos)),
+                             max(1, int(slika.height * odnos))), Image.LANCZOS)
+        platno.paste(nova, ((w - nova.width) // 2, (h - nova.height) // 2))
+    elif stil == "slozi":
+        for x in range(0, w, slika.width):
+            for y in range(0, h, slika.height):
+                platno.paste(slika, (x, y))
+    else:                                    # centriraj
+        platno.paste(slika, ((w - slika.width) // 2, (h - slika.height) // 2))
+
+    _tapeta = (kljuc, platno)
+    return platno
+
+
+def zaboravi_pozadinu():
+    """Baci zapamcene isecke — zove se kad se tapeta promeni."""
+    _poz_kes.clear()
+
+
+def _velicina_ekrana():
+    user32 = ctypes.windll.user32
+    return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
 
 
 def uslikaj_ekran():
@@ -36,17 +126,18 @@ def uslikaj_ekran():
     return _ekran is not None
 
 
-def _isecak(x, y, w, h):
-    """Deo snimka ispod prozora; van ivica ekrana ide tamna popuna."""
+def _isecak(x, y, w, h, izvor=None):
+    """Deo podloge ispod prozora; van ivica ekrana ide tamna popuna."""
     platno = Image.new("RGB", (w, h), hx(DUBINA))
-    if _ekran is None:
+    izvor = izvor if izvor is not None else _ekran
+    if izvor is None:
         return platno
-    ex, ey = _ekran.size
+    ex, ey = izvor.size
     x0, y0 = max(0, x), max(0, y)
     x1, y1 = min(ex, x + w), min(ey, y + h)
     if x1 <= x0 or y1 <= y0:
         return platno
-    platno.paste(_ekran.crop((x0, y0, x1, y1)), (x0 - x, y0 - y))
+    platno.paste(izvor.crop((x0, y0, x1, y1)), (x0 - x, y0 - y))
     return platno
 
 
@@ -89,8 +180,9 @@ def pozadina(w, h, x=0, y=0):
         _poz_kes[kljuc] = im
         return im
 
-    if _ekran is not None:
-        im = _isecak(x, y, w, h).filter(ImageFilter.GaussianBlur(20))
+    podloga = tapeta(*_velicina_ekrana()) or _ekran
+    if podloga is not None:
+        im = _isecak(x, y, w, h, podloga).filter(ImageFilter.GaussianBlur(20))
         im = ImageEnhance.Color(im).enhance(0.68)
         im = ImageEnhance.Brightness(im).enhance(0.44)   # tamnije od radne povrsine
         im = Image.blend(im, Image.effect_noise((w, h), 20).convert("RGB"), 0.02)

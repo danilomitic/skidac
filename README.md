@@ -39,10 +39,14 @@ Instagram objave koje traze prijavu: cekiraj opciju za kolacice iz Chrome-a
 
 ## Izgled
 
-Pozadina prozora je tvoja radna povrsina — zamucena i pritamnjena. Snimak
-se uzima dok je prozor jos sakriven (da ne uslikamo sami sebe) i isece se
-po polozaju prozora, pa se osvezi kad prozor pomeris. Nije uzivo: ako se
-iza promeni sadrzaj, pomeri prozor ili ga pokreni ponovo.
+Kroz prozor se vidi tvoja desktop pozadina — zamucena i pritamnjena.
+Aplikacija cita pravu tapetu iz Windows-a i postuje kako je ti prikazujes
+(popuni / uklopi / rastegni / centriraj / slozi). Isecak prati gde stoji
+prozor, pa deluje kao da gledas kroz njega, a promenu tapete uhvati sama
+za par sekundi — ne treba je gasiti.
+
+Ako tapeta ne moze da se procita, vraca se na snimak radne povrsine, pa
+na zeleni gradijent.
 
 Paneli su namerno TAMNIJI od radne povrsine ispod sebe. Da su svetliji,
 beli tekst bi nestao cim je iza nesto svetlo.

@@ -125,11 +125,13 @@ class App(tk.Tk):
         self._posao_pomeranja = None
         self._ponovo = self.ekran_izbor
         self.platno = None
+        self._kljuc_tapete = draw.kljuc_tapete()
         self.ekran_izbor()
         self.deiconify()
         self.bind("<Configure>", self._na_pomeranje)
         self._pojavi_se()
         self.after(100, self._pumpa)
+        self.after(3000, self._prati_tapetu)
 
     def _tamna_traka(self):
         """Windows inace nacrta svetlu naslovnu traku iznad tamnog prozora."""
@@ -241,12 +243,26 @@ class App(tk.Tk):
             self.after_cancel(self._posao_pomeranja)
         self._posao_pomeranja = self.after(220, self._osvezi_pozadinu)
 
+    def _prati_tapetu(self):
+        """Ako korisnik promeni tapetu, staklo mora da pokaze novu."""
+        try:
+            if not self.skida:              # ne diramo ekran usred skidanja
+                kljuc = draw.kljuc_tapete()
+                if kljuc != self._kljuc_tapete:
+                    self._kljuc_tapete = kljuc
+                    draw.zaboravi_pozadinu()
+                    self._ponovo()
+        except Exception:
+            pass
+        finally:
+            self.after(3000, self._prati_tapetu)
+
     def _osvezi_pozadinu(self):
         self._posao_pomeranja = None
         if (self.winfo_x(), self.winfo_y()) == (self.px, self.py):
             return
         self.px, self.py = self.winfo_x(), self.winfo_y()
-        self._ponovo()
+        self._ponovo()          # nov isecak tapete za novo mesto
 
     def _novo_platno(self):
         """Sveže platno i sveža kopija pozadine, spremna za panele."""
