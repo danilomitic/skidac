@@ -13,6 +13,7 @@ import math
 import os
 import queue
 import threading
+import time
 import traceback
 import tkinter as tk
 import urllib.request
@@ -107,8 +108,11 @@ class App(tk.Tk):
 
         self._postavljen = False
         self.generacija = 0
+        self._animacija = 0
+        self._od_visine = 0
         self.platno = None
         self.ekran_izbor()
+        self._pojavi_se()
         self.after(100, self._pumpa)
 
     def _tamna_traka(self):
@@ -123,17 +127,84 @@ class App(tk.Tk):
         except Exception:
             pass
 
+    @staticmethod
+    def _uspori(t):
+        """Ease-out: kreni brzo pa se smiri — tako se ponasa i Start meni."""
+        return 1 - (1 - t) ** 3
+
+    def _pojavi_se(self, trajanje=0.28, pomak=None):
+        """Prozor isklizne odozdo i stopi se, kao Start meni."""
+        pomak = pomak if pomak is not None else s(64)
+        self.update_idletasks()
+        x, kraj_y = self.winfo_x(), self.winfo_y()
+        try:
+            self.attributes("-alpha", 0.0)
+        except tk.TclError:
+            return
+        pocetak = time.perf_counter()
+        # sigurnosna kocnica: prozor ne sme da ostane neproziran ako nesto pukne
+        self.after(int(trajanje * 1000) + 400,
+                   lambda: self.attributes("-alpha", 1.0))
+
+        def korak():
+            t = min(1.0, (time.perf_counter() - pocetak) / trajanje)
+            e = self._uspori(t)
+            self.geometry(f"{self.W}x{self.H}+{x}+{int(kraj_y + pomak * (1 - e))}")
+            self.attributes("-alpha", min(1.0, e * 1.3))
+            if t < 1.0:
+                self.after(10, korak)
+            else:
+                self.geometry(f"{self.W}x{self.H}+{x}+{kraj_y}")
+                self.attributes("-alpha", 1.0)
+
+        korak()
+
     def _visina(self, h):
-        """Prozor raste prema sadrzaju, umesto da zjapi prazan."""
+        """Zapamti odakle krecemo; platno se pravi vec u konacnoj visini."""
+        self._od_visine = self.H
         self.H = h
         if not self._postavljen:
             x = (self.winfo_screenwidth() - self.W) // 2
-            y = max(0, (self.winfo_screenheight() - self.H) // 2 - s(24))
+            y = max(0, (self.winfo_screenheight() - h) // 2 - s(24))
             self._postavljen = True
-        else:
-            x, y = self.winfo_x(), self.winfo_y()
-            y = min(y, max(0, self.winfo_screenheight() - h - s(60)))
-        self.geometry(f"{self.W}x{self.H}+{x}+{y}")
+            self.geometry(f"{self.W}x{h}+{x}+{y}")
+
+    def _zavrsi_visinu(self, trajanje=0.22):
+        """Glatko razvlacenje — inace prozor skoci kad se klip ucita.
+
+        Menja se i visina platna, ne samo geometrija prozora: uz
+        resizable(False, False) Tk namesti prozor na trazenu velicinu
+        platna i preko toga pregazi zadatu geometriju.
+        """
+        od, do = self._od_visine, self.H
+        x = self.winfo_x()
+        y = min(self.winfo_y(), max(0, self.winfo_screenheight() - do - s(60)))
+        self._animacija += 1
+        oznaka = self._animacija
+
+        if abs(do - od) < s(24):
+            self.platno.config(height=do)
+            self.geometry(f"{self.W}x{do}+{x}+{y}")
+            return
+
+        self.platno.config(height=od)
+        self.geometry(f"{self.W}x{od}+{x}+{y}")
+        pocetak = time.perf_counter()
+
+        def korak():
+            if oznaka != self._animacija:
+                return                    # krenula je novija animacija
+            t = min(1.0, (time.perf_counter() - pocetak) / trajanje)
+            h = int(od + (do - od) * self._uspori(t))
+            self.platno.config(height=h)
+            self.geometry(f"{self.W}x{h}+{x}+{y}")
+            if t < 1.0:
+                self.after(10, korak)
+            else:
+                self.platno.config(height=do)
+                self.geometry(f"{self.W}x{do}+{x}+{y}")
+
+        korak()
 
     # ------------------------------------------------- platno
 
@@ -187,6 +258,7 @@ class App(tk.Tk):
             KarticaPlatforme(self.platno, baza, pad, ky, kw, kh, naziv, opis,
                              ikona, lambda k=kljuc: self.ekran_link(k))
             ky += kh + razmak
+        self._zavrsi_visinu()
 
     # ============================================= ekran 2: link
 
@@ -309,6 +381,7 @@ class App(tk.Tk):
             self._crtaj_karticu(r)
         else:
             self.after(150, self.polje.fokusiraj)
+        self._zavrsi_visinu()
 
     def _kvacica(self, x, y):
         """Prekidač za kolačiće — sitan, samo za Instagram."""

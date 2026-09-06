@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 ffmpeg.exe
 ffmpeg.zip
+err.txt
+out.txt
