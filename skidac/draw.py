@@ -15,7 +15,10 @@ import winreg
 from PIL import (Image, ImageDraw, ImageEnhance, ImageFilter, ImageGrab,
                    ImageTk)
 
-from .theme import DUBINA, MENTA, SMARAGD, TIRKIZ, ZELENA, hx
+from .theme import (DUBINA, KLJUC, MENTA, SMARAGD, STAKLO, TIRKIZ, ZELENA,
+                    hx)
+
+PROVIDNO = True     # prozor je stvarno providan, blur radi Windows
 
 SS = 4              # supersampling za glatke ivice
 _poz_kes = {}
@@ -165,8 +168,11 @@ def pozadina(w, h, x=0, y=0):
     Redosled: korisnikova slika ako je ostavio, pa snimak ekrana, pa
     zeleni gradijent ako snimak nije uspeo.
     """
-    kljuc = (w, h, x, y)
+    kljuc = (w, h, x, y, PROVIDNO)
     if kljuc in _poz_kes:
+        return _poz_kes[kljuc]
+    if PROVIDNO:
+        _poz_kes[kljuc] = Image.new("RGB", (w, h), hx(KLJUC))
         return _poz_kes[kljuc]
     if len(_poz_kes) > 12:
         _poz_kes.clear()          # pomeranje prozora bi inace gomilalo slike
@@ -254,10 +260,13 @@ def staklo(poz, x, y, w, h, r, belina=0.07, blur=26, tint=None, tint_jak=0.0,
     """
     w, h = max(1, int(w)), max(1, int(h))
     podloga = poz.crop((x, y, x + w, y + h))
-    g = podloga.filter(ImageFilter.GaussianBlur(blur))
-    g = ImageEnhance.Color(g).enhance(0.90)
-    g = ImageEnhance.Brightness(g).enhance(0.86)
-    g = Image.blend(g, Image.new("RGB", (w, h), (0, 0, 0)), 0.18)
+    if PROVIDNO:
+        g = Image.new("RGB", (w, h), hx(STAKLO))
+    else:
+        g = podloga.filter(ImageFilter.GaussianBlur(blur))
+        g = ImageEnhance.Color(g).enhance(0.90)
+        g = ImageEnhance.Brightness(g).enhance(0.86)
+        g = Image.blend(g, Image.new("RGB", (w, h), (0, 0, 0)), 0.18)
 
     if tint and tint_jak:
         g = Image.blend(g, Image.new("RGB", (w, h), hx(tint)), tint_jak)
@@ -317,7 +326,8 @@ def senka(poz, x, y, w, h, r, pomak=12, blur=16, jacina=0.5):
 
 def panel(poz, x, y, w, h, r, pomak=12, s_blur=16, s_jak=0.5, **kw):
     """Senka + staklo, upisano u sliku pozadine."""
-    senka(poz, x, y, w, h, r, pomak=pomak, blur=s_blur, jacina=s_jak)
+    if not PROVIDNO:
+        senka(poz, x, y, w, h, r, pomak=pomak, blur=s_blur, jacina=s_jak)
     poz.paste(staklo(poz, x, y, w, h, r, **kw), (x, y))
 
 

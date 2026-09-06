@@ -39,14 +39,20 @@ Instagram objave koje traze prijavu: cekiraj opciju za kolacice iz Chrome-a
 
 ## Izgled
 
-Kroz prozor se vidi tvoja desktop pozadina — zamucena i pritamnjena.
-Aplikacija cita pravu tapetu iz Windows-a i postuje kako je ti prikazujes
-(popuni / uklopi / rastegni / centriraj / slozi). Isecak prati gde stoji
-prozor, pa deluje kao da gledas kroz njega, a promenu tapete uhvati sama
-za par sekundi — ne treba je gasiti.
+Prozor je stvarno providan. Pikseli boje `KLJUC` (theme.py) postaju rupa
+u prozoru, a Windows iza nje radi zivi blur (acrylic). Ostatak prozora
+ide na 93% neprozirnosti, pa se i kroz panele malo vidi sta je iza.
+Vidi se sve sto je stvarno iza — druga aplikacija, video, bilo sta — i
+menja se uzivo.
 
-Ako tapeta ne moze da se procita, vraca se na snimak radne povrsine, pa
-na zeleni gradijent.
+**Cena:** kroz providne delove klik prolazi na aplikaciju ispod. Kartice i
+dugmad rade normalno, ali prozor se pomera samo za naslovnu traku. To je
+kako Windows radi sa kljucnom bojom i ne moze da se zaobidje bez gubitka
+providnosti.
+
+Ako sistem ne podrzava providnost, vraca se na crtanu pozadinu: tapeta
+(citana iz Windows-a, sa stilom prikaza), pa snimak radne povrsine, pa
+zeleni gradijent.
 
 Paneli su namerno TAMNIJI od radne povrsine ispod sebe. Da su svetliji,
 beli tekst bi nestao cim je iza nesto svetlo.

@@ -22,8 +22,8 @@ from tkinter import filedialog
 from PIL import Image, ImageTk
 
 from . import core, draw, sajt
-from .theme import (CRVENA, FAM, FAM_B, FAM_N, MENTA, MENTA_HI, TXT, TXT2,
-                    TXT3, izaberi_fontove, postavi_skalu, s)
+from .theme import (CRVENA, FAM, FAM_B, FAM_N, KLJUC, MENTA, MENTA_HI, TXT,
+                    TXT2, TXT3, izaberi_fontove, postavi_skalu, s)
 from .widgets import (Cip, Dugme, Element, Polje, Segment, Traka, nalepnica,
                       ocisti_kes, tekst)
 
@@ -89,17 +89,19 @@ class App(tk.Tk):
 
         self.W, self.H = s(700), s(790)
         self.title("Skidac")
-        self.configure(bg="#020705")
+        self.configure(bg=KLJUC)
         self.resizable(False, False)
         try:
             self.iconbitmap(core.resource_path("icon.ico"))
         except tk.TclError:
             pass
 
-        # snimak radne povrsine mora pre nego sto se prozor pojavi, da ne
-        # uslikamo sami sebe
         self.withdraw()
-        draw.uslikaj_ekran()
+        self.prozirnost = 0.93
+        self._providno = self._ukljuci_providnost()
+        if not self._providno:
+            draw.PROVIDNO = False       # rezerva: crtana pozadina
+            draw.uslikaj_ekran()
         self._tamna_traka()
 
         self.izvor = None
@@ -133,6 +135,42 @@ class App(tk.Tk):
         self.after(100, self._pumpa)
         self.after(3000, self._prati_tapetu)
 
+    def _ukljuci_providnost(self):
+        """Rupa u prozoru + zivi blur Windows-a iza nje.
+
+        Pikseli boje KLJUC postaju potpuno providni, a ostatak prozora ide
+        na blagu prozirnost, pa se i kroz panele malo vidi sta je iza.
+        Vraca False ako sistem to ne podrzava, pa se vracamo na crtanu
+        pozadinu.
+        """
+        try:
+            self.attributes("-transparentcolor", KLJUC)
+        except tk.TclError:
+            return False
+        try:
+            self.update_idletasks()
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+
+            class ACCENT(ctypes.Structure):
+                _fields_ = [("stanje", ctypes.c_int), ("zastavice", ctypes.c_int),
+                            ("boja", ctypes.c_uint), ("animacija", ctypes.c_int)]
+
+            class PODACI(ctypes.Structure):
+                _fields_ = [("atribut", ctypes.c_int),
+                            ("podaci", ctypes.POINTER(ACCENT)),
+                            ("velicina", ctypes.c_size_t)]
+
+            akcenat = ACCENT()
+            akcenat.stanje = 4          # ACCENT_ENABLE_ACRYLICBLURBEHIND
+            akcenat.zastavice = 2       # vazi za ceo prozor
+            akcenat.boja = 0x2E141210   # AABBGGRR — blaga tamna nijansa
+            podaci = PODACI(19, ctypes.pointer(akcenat), ctypes.sizeof(akcenat))
+            ctypes.windll.user32.SetWindowCompositionAttribute(
+                hwnd, ctypes.byref(podaci))
+        except Exception:
+            pass                        # bez blura, ali providnost i dalje radi
+        return True
+
     def _tamna_traka(self):
         """Windows inace nacrta svetlu naslovnu traku iznad tamnog prozora."""
         try:
@@ -163,18 +201,18 @@ class App(tk.Tk):
         self._animiram = True
         # sigurnosna kocnica: prozor ne sme da ostane neproziran ako nesto pukne
         self.after(int(trajanje * 1000) + 400,
-                   lambda: self.attributes("-alpha", 1.0))
+                   lambda: self.attributes("-alpha", self.prozirnost))
 
         def korak():
             t = min(1.0, (time.perf_counter() - pocetak) / trajanje)
             e = self._uspori(t)
             self.geometry(f"{self.W}x{self.H}+{x}+{int(kraj_y + pomak * (1 - e))}")
-            self.attributes("-alpha", min(1.0, e * 1.3))
+            self.attributes("-alpha", min(self.prozirnost, e * 1.3))
             if t < 1.0:
                 self.after(10, korak)
             else:
                 self.geometry(f"{self.W}x{self.H}+{x}+{kraj_y}")
-                self.attributes("-alpha", 1.0)
+                self.attributes("-alpha", self.prozirnost)
                 self._animiram = False
 
         korak()
@@ -246,7 +284,7 @@ class App(tk.Tk):
     def _prati_tapetu(self):
         """Ako korisnik promeni tapetu, staklo mora da pokaze novu."""
         try:
-            if not self.skida:              # ne diramo ekran usred skidanja
+            if not self.skida and not self._providno:
                 kljuc = draw.kljuc_tapete()
                 if kljuc != self._kljuc_tapete:
                     self._kljuc_tapete = kljuc
@@ -271,7 +309,7 @@ class App(tk.Tk):
         self.generacija += 1
         ocisti_kes()
         self.platno = tk.Canvas(self, width=self.W, height=self.H,
-                                highlightthickness=0, bd=0, bg="#020705")
+                                highlightthickness=0, bd=0, bg=KLJUC)
         self.platno.pack(fill="both", expand=True)
         return draw.pozadina(self.W, self.H, self.px, self.py).copy()
 

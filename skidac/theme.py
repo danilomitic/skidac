@@ -12,6 +12,11 @@ TIRKIZ   = "#07403d"
 MENTA    = "#3ff0ae"
 MENTA_HI = "#6bffc9"
 
+# Boja-kljuc: pikseli tacno ove boje postaju rupa u prozoru kroz koju se
+# vidi ono sto je iza. Namerno neobicna, da je slucajno ne pogodimo negde.
+KLJUC    = "#010204"
+STAKLO   = "#111a17"      # osnovna boja panela u providnom rezimu
+
 TXT      = "#f4faf7"      # glavni tekst
 TXT2     = "#d8ece4"      # sekundarni
 TXT3     = "#a6c2b6"      # sitne nalepnice
