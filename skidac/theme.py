@@ -5,10 +5,10 @@ Pozadina je zeleni gradijent i sve je staklo, pa su boje ovde uglavnom
 tekst i akcenti — povrsine se racunaju iz same pozadine (vidi draw.py).
 """
 
-DUBINA   = "#020705"      # najtamnija tacka gradijenta
-ZELENA   = "#07362a"
-SMARAGD  = "#0a5f47"
-TIRKIZ   = "#0a5450"
+DUBINA   = "#010403"      # najtamnija tacka gradijenta
+ZELENA   = "#052a20"
+SMARAGD  = "#074b39"
+TIRKIZ   = "#07403d"
 MENTA    = "#3ff0ae"
 MENTA_HI = "#6bffc9"
 

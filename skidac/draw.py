@@ -7,6 +7,9 @@ pozadine ISPOD njega zamuti i posvetli. To je pravo staklo, ne imitacija —
 panel stvarno pokazuje ono što je iza njega.
 """
 
+import os
+import sys
+
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageTk
 
 from .theme import DUBINA, MENTA, SMARAGD, TIRKIZ, ZELENA, hx
@@ -18,10 +21,35 @@ _ikone = {}
 
 # ---------------------------------------------------------------- pozadina
 
+def _svoja_slika():
+    """Ako korisnik ostavi pozadina.png/jpg pored aplikacije, koristi nju."""
+    mesta = [os.path.dirname(sys.executable),
+             os.path.dirname(os.path.dirname(os.path.abspath(__file__)))]
+    for mesto in mesta:
+        for ime in ("pozadina.png", "pozadina.jpg", "pozadina.jpeg",
+                    "pozadina.webp"):
+            put = os.path.join(mesto, ime)
+            if os.path.isfile(put):
+                try:
+                    return Image.open(put).convert("RGB")
+                except Exception:
+                    pass
+    return None
+
+
 def pozadina(w, h):
-    """Zeleni mesh gradijent: mrlje boje, jako zamućene, pa zrno preko."""
+    """Korisnikova slika ako postoji, inace zeleni mesh gradijent."""
     if (w, h) in _poz_kes:
         return _poz_kes[(w, h)]
+
+    svoja = _svoja_slika()
+    if svoja is not None:
+        im = uklopi(svoja, w, h)
+        im = ImageEnhance.Brightness(im).enhance(0.55)   # da tekst ostane citljiv
+        im = _pritamni(im, w, h)
+        im = Image.blend(im, Image.effect_noise((w, h), 26).convert("RGB"), 0.02)
+        _poz_kes[(w, h)] = im
+        return im
 
     mw, mh = max(8, w // 6), max(8, h // 6)
     im = Image.new("RGB", (mw, mh), hx(DUBINA))
@@ -30,12 +58,12 @@ def pozadina(w, h):
     # (x, y, poluprečnik, boja) — u udelima veličine, da radi na svakom DPI
     # manje mrlje, sa tamnim prostorom izmedju — inace se sve slije u jednu zelenu
     for fx, fy, fr, boja in (
-        (0.02, -0.06, 0.32, "#0c7a5c"),
+        (0.02, -0.06, 0.32, "#0a6349"),
         (0.42, 0.06, 0.22, SMARAGD),
         (1.04, 0.12, 0.28, TIRKIZ),
         (0.74, 0.48, 0.24, ZELENA),
         (-0.08, 0.60, 0.24, ZELENA),
-        (0.88, 0.92, 0.30, "#0a6b50"),
+        (0.88, 0.92, 0.30, "#07543f"),
         (0.20, 1.04, 0.24, TIRKIZ),
     ):
         x, y, r = fx * mw, fy * mh, fr * min(mw, mh)
@@ -46,24 +74,27 @@ def pozadina(w, h):
     im = ImageEnhance.Brightness(im).enhance(0.86)   # baza je vec tamna
     im = ImageEnhance.Color(im).enhance(1.15)
 
-    # sve tamnije ka dnu, da tekst ima gde da sedne
-    pad = Image.new("L", (1, h))
-    for y in range(h):
-        pad.putpixel((0, y), int(20 + 145 * (y / max(1, h - 1)) ** 1.15))
-    im = Image.composite(Image.new("RGB", (w, h), hx(DUBINA)), im,
-                         pad.resize((w, h)))
-
-    # vinjeta: uglovi tamniji
-    v = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(v).ellipse([-w * 0.18, -h * 0.18, w * 1.18, h * 1.18],
-                              fill=255)
-    v = v.filter(ImageFilter.GaussianBlur(min(w, h) * 0.16))
-    im = Image.composite(im, Image.new("RGB", (w, h), hx(DUBINA)), v)
+    im = _pritamni(im, w, h)
 
     # zrno — bez njega gradijent pravi vidljive trake
     im = Image.blend(im, Image.effect_noise((w, h), 26).convert("RGB"), 0.028)
     _poz_kes[(w, h)] = im
     return im
+
+
+def _pritamni(im, w, h):
+    """Pad ka dnu i vinjeta — tekst mora da ima gde da sedne."""
+    pad = Image.new("L", (1, h))
+    for y in range(h):
+        pad.putpixel((0, y), int(30 + 160 * (y / max(1, h - 1)) ** 1.15))
+    im = Image.composite(Image.new("RGB", (w, h), hx(DUBINA)), im,
+                         pad.resize((w, h)))
+
+    v = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(v).ellipse([-w * 0.18, -h * 0.18, w * 1.18, h * 1.18],
+                              fill=255)
+    v = v.filter(ImageFilter.GaussianBlur(min(w, h) * 0.16))
+    return Image.composite(im, Image.new("RGB", (w, h), hx(DUBINA)), v)
 
 
 # ---------------------------------------------------------------- staklo
@@ -75,7 +106,7 @@ def maska(w, h, r):
     return m.resize((w, h), Image.LANCZOS)
 
 
-def staklo(poz, x, y, w, h, r, belina=0.12, blur=22, tint=None, tint_jak=0.0,
+def staklo(poz, x, y, w, h, r, belina=0.07, blur=26, tint=None, tint_jak=0.0,
            ivica=0.30, sjaj=True):
     """Isečak pozadine pretvoren u stakleni panel.
 
@@ -84,9 +115,10 @@ def staklo(poz, x, y, w, h, r, belina=0.12, blur=22, tint=None, tint_jak=0.0,
     ivica   — jačina svetle ivice, sjaj — odsjaj uz gornju ivicu
     """
     w, h = max(1, int(w)), max(1, int(h))
-    g = poz.crop((x, y, x + w, y + h)).filter(ImageFilter.GaussianBlur(blur))
-    g = ImageEnhance.Color(g).enhance(1.35)
-    g = ImageEnhance.Brightness(g).enhance(1.18)
+    podloga = poz.crop((x, y, x + w, y + h))
+    g = podloga.filter(ImageFilter.GaussianBlur(blur))
+    g = ImageEnhance.Color(g).enhance(1.5)
+    g = ImageEnhance.Brightness(g).enhance(1.30)
 
     if tint and tint_jak:
         g = Image.blend(g, Image.new("RGB", (w, h), hx(tint)), tint_jak)
@@ -98,7 +130,9 @@ def staklo(poz, x, y, w, h, r, belina=0.12, blur=22, tint=None, tint_jak=0.0,
         g.paste(belo, (0, 0), _sjaj(w, h, r))
     if ivica:
         g.paste(belo, (0, 0), _ivica(w, h, r, ivica))
-    return g
+
+    podloga.paste(g, (0, 0), maska(w, h, r))
+    return podloga
 
 
 def _ivica(w, h, r, jacina):
@@ -145,7 +179,7 @@ def senka(poz, x, y, w, h, r, pomak=12, blur=16, jacina=0.5):
 def panel(poz, x, y, w, h, r, pomak=12, s_blur=16, s_jak=0.5, **kw):
     """Senka + staklo, upisano u sliku pozadine."""
     senka(poz, x, y, w, h, r, pomak=pomak, blur=s_blur, jacina=s_jak)
-    poz.paste(staklo(poz, x, y, w, h, r, **kw), (x, y), maska(w, h, r))
+    poz.paste(staklo(poz, x, y, w, h, r, **kw), (x, y))
 
 
 def na_platno(im):

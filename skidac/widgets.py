@@ -83,9 +83,12 @@ class Element:
             self.p.itemconfig(self.tekst_id, fill=boja_teksta)
 
     def obrisi(self):
-        self.p.delete(self.oznaka)
-        if self.tekst_id is not None:
-            self.p.delete(self.tekst_id)
+        try:
+            self.p.delete(self.oznaka)
+            if self.tekst_id is not None:
+                self.p.delete(self.tekst_id)
+        except tk.TclError:
+            pass                         # platno je vec unisteno
 
 
 class Dugme(Element):
@@ -110,7 +113,7 @@ class Dugme(Element):
                  stil="tiho", font=None, r=None):
         super().__init__(platno, baza, x, y, w, h)
         self.stil, self.komanda = stil, komanda
-        self.r = r if r is not None else min(h // 2, s(14))
+        self.r = r if r is not None else h // 2
         self.tekst_id = tekst(platno, x + w // 2, y + h // 2, sadrzaj,
                               font or (FAM_B, 10), sidro="center")
         self.crtaj()
@@ -144,7 +147,7 @@ class Cip(Element):
         super().__init__(platno, baza, x, y, w, h)
         self.vrednost, self.komanda = vrednost, komanda
         self.izabran = False
-        self.r = min(h // 2, s(12))
+        self.r = h // 2
         self.tekst_id = tekst(platno, x + w // 2, y + h // 2, sadrzaj,
                               (FAM_B, 9), sidro="center")
         self.crtaj()
@@ -177,11 +180,13 @@ class Segment(Element):
         super().__init__(platno, baza, x, y, w, h)
         self.opcije, self.komanda = opcije, komanda
         self.izbor = opcije[0][1]
-        self.r = min(h // 2, s(13))
+        self.r = h // 2
 
         # trag (cela traka) se ne menja, pa se crta odmah
-        self._postavi(_staklo_slika(baza, x, y, w, h, self.r,
-                                    belina=0.06, ivica=0.16))
+        trag = staklo(baza, x, y, w, h, self.r, belina=0.06, ivica=0.16)
+        self._postavi(na_platno(trag))
+        self.baza = baza.copy()          # pilula se spaja sa tragom ispod sebe
+        self.baza.paste(trag, (x, y))
         n = len(opcije)
         self.pad = s(4)
         self.pw = int(w / n) - self.pad * 2
@@ -201,8 +206,8 @@ class Segment(Element):
         py = self.y + self.pad
         self.p.coords(self.pilula_id, px, py)
         self.pilula = _staklo_slika(self.baza, px, py, self.pw, self.ph,
-                                    min(self.ph // 2, s(10)), belina=0.12,
-                                    tint=MENTA, tint_jak=0.42, ivica=0.48)
+                                    self.ph // 2, belina=0.10,
+                                    tint=MENTA, tint_jak=0.40, ivica=0.45)
         self.p.itemconfig(self.pilula_id, image=self.pilula)
         for j, t in enumerate(self.natpisi):
             self.p.itemconfig(t, fill=TXT if j == i else TXT2)
@@ -232,8 +237,11 @@ class Traka:
     def __init__(self, platno, baza, x, y, w, h):
         self.p, self.baza = platno, baza
         self.x, self.y, self.w, self.h = x, y, w, h
-        self.sina = _staklo_slika(baza, x, y, w, h, h // 2, belina=0.08,
-                                  ivica=0.18, sjaj=False)
+        sina = staklo(baza, x, y, w, h, h // 2, belina=0.08, ivica=0.18,
+                      sjaj=False)
+        self.sina = na_platno(sina)
+        self.baza = baza.copy()
+        self.baza.paste(sina, (x, y))
         self.sina_id = platno.create_image(x, y, anchor="nw", image=self.sina)
         self.ispuna_id = platno.create_image(x, y, anchor="nw")
         self.pct = -1
@@ -269,7 +277,7 @@ class Polje:
         self.p, self.nagovestaj = platno, nagovestaj
         self.x, self.y, self.w, self.h = x, y, w, h
         self.prazno = False
-        self.r = min(h // 2, s(14))
+        self.r = h // 2
 
         self.mirna = staklo(baza, x, y, w, h, self.r, belina=0.09, ivica=0.20)
         self.aktivna = staklo(baza, x, y, w, h, self.r, belina=0.13,

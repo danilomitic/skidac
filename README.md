@@ -13,6 +13,13 @@ Desktop aplikacija za Windows — skida video sa YouTube-a i Instagrama kao MP4 
 Instagram objave koje traze prijavu: cekiraj opciju za kolacice iz Chrome-a
 (moras biti ulogovan na Instagram u Chrome-u).
 
+## Svoja pozadina
+
+Stavi `pozadina.png` (ili .jpg) pored `Skidac.exe` i aplikacija ce je
+koristiti umesto zelenog gradijenta. Slika se sece na sredini i uklapa u
+prozor, pa neka bude uspravna ili kvadratna, najmanje 1400x1600 px.
+Automatski se pritamni da tekst ostane citljiv.
+
 ## Kako je slozeno
 
 ```

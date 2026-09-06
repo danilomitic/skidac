@@ -13,6 +13,7 @@ import math
 import os
 import queue
 import threading
+import traceback
 import tkinter as tk
 import urllib.request
 from tkinter import filedialog
@@ -39,7 +40,7 @@ class KarticaPlatforme(Element):
     def __init__(self, platno, baza, x, y, w, h, naziv, opis, ikona, komanda):
         super().__init__(platno, baza, x, y, w, h)
         self.komanda = komanda
-        self.r = s(24)
+        self.r = s(28)
         self.ikona = ikona(s(50))
         self.ipoz = (s(24), (h - s(50)) // 2)
         self._slike = {}
@@ -105,6 +106,7 @@ class App(tk.Tk):
         self.red = queue.Queue()
 
         self._postavljen = False
+        self.generacija = 0
         self.platno = None
         self.ekran_izbor()
         self.after(100, self._pumpa)
@@ -139,6 +141,7 @@ class App(tk.Tk):
         """Sveže platno i sveža kopija pozadine, spremna za panele."""
         if self.platno:
             self.platno.destroy()
+        self.generacija += 1
         ocisti_kes()
         self.platno = tk.Canvas(self, width=self.W, height=self.H,
                                 highlightthickness=0, bd=0, bg="#020705")
@@ -274,7 +277,7 @@ class App(tk.Tk):
         ik = ikona(s(22))
         baza.paste(ik, (self.W - pad - s(22), s(34)), ik)
         if self.info:
-            draw.panel(baza, r["kx"], r["ky"], r["kw"], r["kh"], s(26),
+            draw.panel(baza, r["kx"], r["ky"], r["kw"], r["kh"], s(30),
                        belina=0.10, ivica=0.26, pomak=s(14), s_blur=s(18),
                        s_jak=0.60)
         self._prikazi_bazu(baza)
@@ -337,8 +340,8 @@ class App(tk.Tk):
         self._slicica_prazna()
         if info.get("thumbnail"):
             threading.Thread(target=self._citaj_slicicu,
-                             args=(info["thumbnail"], r["tw"], r["th"]),
-                             daemon=True).start()
+                             args=(info["thumbnail"], r["tw"], r["th"],
+                                   self.generacija), daemon=True).start()
 
         nx = ux + r["tw"] + s(20)
         naslov_id = tekst(p, nx, r["y_slicica"] + s(4),
@@ -386,7 +389,7 @@ class App(tk.Tk):
     def _slicica_prazna(self):
         x, y, w, h = self.slicica_box
         self.sl_slicica = ImageTk.PhotoImage(
-            draw.staklo(self.baza, x, y, w, h, s(12), belina=0.08, ivica=0.20))
+            draw.staklo(self.baza, x, y, w, h, s(20), belina=0.08, ivica=0.20))
         self.platno.itemconfig(self.slicica_id, image=self.sl_slicica)
 
     # ============================================= provera linka
@@ -407,13 +410,13 @@ class App(tk.Tk):
         except Exception as e:
             self.red.put(("greska_info", core.poruka(e)))
 
-    def _citaj_slicicu(self, url, w, h):
+    def _citaj_slicicu(self, url, w, h, generacija):
         try:
             zahtev = urllib.request.Request(
                 url, headers={"User-Agent": "Mozilla/5.0"})
             sirovo = urllib.request.urlopen(zahtev, timeout=12).read()
             im = Image.open(io.BytesIO(sirovo)).convert("RGB")
-            self.red.put(("slicica", draw.uklopi(im, w, h)))
+            self.red.put(("slicica", (generacija, draw.uklopi(im, w, h))))
         except Exception:
             pass
 
@@ -516,7 +519,7 @@ class App(tk.Tk):
                     self.prikazi(*podatak)
 
                 elif vrsta == "slicica":
-                    self._stavi_slicicu(podatak)
+                    self._stavi_slicicu(*podatak)
 
                 elif vrsta == "greska_info":
                     self.dug_proveri.ukljuci(True)
@@ -544,14 +547,19 @@ class App(tk.Tk):
                     self._odblokiraj()
         except queue.Empty:
             pass
-        self.after(120, self._pumpa)
+        except Exception:
+            traceback.print_exc()
+        finally:
+            self.after(120, self._pumpa)
 
-    def _stavi_slicicu(self, im):
+    def _stavi_slicicu(self, generacija, im):
+        if generacija != self.generacija:
+            return                       # ekran je u medjuvremenu pregradjen
         """Slika se spaja sa pozadinom u Pillow-u — pouzdanije od alfe na platnu."""
         x, y, w, h = self.slicica_box
         podloga = self.baza.crop((x, y, x + w, y + h))
         slika = im.copy()
-        slika.putalpha(draw.maska(w, h, s(12)))
+        slika.putalpha(draw.maska(w, h, s(20)))
         podloga.paste(slika, (0, 0), slika)
         self.sl_slicica = ImageTk.PhotoImage(podloga)
         self.platno.itemconfig(self.slicica_id, image=self.sl_slicica)
