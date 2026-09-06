@@ -1,24 +1,26 @@
 # -*- coding: utf-8 -*-
-"""Boje, fontovi i skaliranje na DPI ekrana."""
+"""Boje, fontovi i skaliranje na DPI ekrana.
 
-BG    = "#0c0e13"   # pozadina prozora
-CARD  = "#151922"   # kartica
-FIELD = "#1c2029"   # polje / neizabrano dugme
-HOVER = "#232833"
-LINE  = "#232935"   # tanke linije i ivice
-TXT   = "#eef1f7"
-MUTED = "#818b9e"   # sekundarni tekst
-DIM   = "#5a6376"   # nalepnice
-MINT  = "#34d399"   # akcenat
-MINT_HI = "#4fe0ad"
-MINT_DK = "#1d3b30"
-INK   = "#07130f"   # tekst na mint podlozi
-RED   = "#f87171"
+Pozadina je zeleni gradijent i sve je staklo, pa su boje ovde uglavnom
+tekst i akcenti — povrsine se racunaju iz same pozadine (vidi draw.py).
+"""
 
-YT    = "#f0282d"
+DUBINA   = "#020e09"      # najtamnija tacka gradijenta
+ZELENA   = "#0d5c43"
+SMARAGD  = "#10b981"
+TIRKIZ   = "#0d9488"
+MENTA    = "#3ff0ae"
+MENTA_HI = "#6bffc9"
 
-FAM   = "Segoe UI"
-FAM_B = "Segoe UI Semibold"
+TXT      = "#f4faf7"      # glavni tekst
+TXT2     = "#d8ece4"      # sekundarni
+TXT3     = "#a6c2b6"      # sitne nalepnice
+INK      = "#05261a"      # tekst na mentol podlozi
+CRVENA   = "#ff9a90"
+
+FAM      = "Segoe UI"
+FAM_B    = "Segoe UI Semibold"
+FAM_N    = "Segoe UI"     # naslovi; zameni se ako postoji Segoe UI Variable
 
 SCALE = 1.0
 
@@ -26,6 +28,17 @@ SCALE = 1.0
 def postavi_skalu(dpi):
     global SCALE
     SCALE = dpi / 96.0
+
+
+def izaberi_fontove(root):
+    """Windows 11 ima Segoe UI Variable — lepsi je za naslove."""
+    global FAM_N
+    try:
+        from tkinter import font
+        if "Segoe UI Variable Display" in set(font.families(root)):
+            FAM_N = "Segoe UI Variable Display"
+    except Exception:
+        pass
 
 
 def s(px):

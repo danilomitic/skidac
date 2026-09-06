@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Prozor aplikacije — dva ekrana: izbor platforme, pa link i skidanje."""
+"""Prozor: izbor platforme, pa link i skidanje.
+
+Sve stoji na jednom platnu. Pozadina (gradijent + senke + stakleni paneli)
+je jedna slika, a kontrole se renderuju iz nje — zato staklo stvarno
+propušta ono što je iza njega. Zbog toga se ekran gradi u jednom prolazu:
+prvo se slika sklopi do kraja, pa se tek onda dodaju kontrole.
+"""
 
 import io
+import math
 import os
 import queue
 import threading
@@ -11,32 +18,72 @@ from tkinter import filedialog
 
 from PIL import Image, ImageTk
 
-from . import core
-from .draw import ikona_instagram, ikona_youtube, rr, uklopi, zaobli
-from .theme import (BG, CARD, DIM, FAM, FAM_B, FIELD, LINE, MINT, MUTED, RED,
-                    TXT, postavi_skalu, s)
-from .widgets import (Cip, Dugme, Kartica, Polje, Segment, Traka, nalepnica,
-                      potomci, veza)
+from . import core, draw
+from .theme import (CRVENA, FAM, FAM_B, FAM_N, MENTA, MENTA_HI, TXT, TXT2,
+                    TXT3, izaberi_fontove, postavi_skalu, s)
+from .widgets import (Cip, Dugme, Element, Polje, Segment, Traka, nalepnica,
+                      ocisti_kes, tekst)
 
 PLATFORME = {
-    "youtube":   ("YouTube", "Video, Shorts, plejliste", ikona_youtube,
+    "youtube":   ("YouTube", "Video, Shorts, plejliste", draw.ikona_youtube,
                   "https://www.youtube.com/watch?v=…"),
-    "instagram": ("Instagram", "Reels, objave, IGTV", ikona_instagram,
+    "instagram": ("Instagram", "Reels, objave, IGTV", draw.ikona_instagram,
                   "https://www.instagram.com/reel/…"),
 }
+
+
+class KarticaPlatforme(Element):
+    """Velika staklena kartica sa ikonicom — YouTube / Instagram."""
+
+    def __init__(self, platno, baza, x, y, w, h, naziv, opis, ikona, komanda):
+        super().__init__(platno, baza, x, y, w, h)
+        self.komanda = komanda
+        self.r = s(24)
+        self.ikona = ikona(s(50))
+        self.ipoz = (s(24), (h - s(50)) // 2)
+        self._slike = {}
+
+        tx, ty = x + s(24) + s(50) + s(20), y + h // 2
+        self.naslov_id = tekst(platno, tx, ty - s(13), naziv, (FAM_B, 13), TXT)
+        self.opis_id = tekst(platno, tx, ty + s(5), opis, (FAM, 9), TXT3)
+        self.strelica_id = tekst(platno, x + w - s(26), ty, "›", (FAM, 20),
+                                 TXT3, sidro="e")
+        self.crtaj()
+
+    def _slika(self, stanje):
+        if stanje not in self._slike:
+            par = (dict(belina=0.23, ivica=0.90) if stanje == "hover"
+                   else dict(belina=0.13, ivica=0.52))
+            g = draw.staklo(self.baza, self.x, self.y, self.w, self.h,
+                            self.r, **par)
+            g.paste(self.ikona, self.ipoz, self.ikona)
+            self._slike[stanje] = ImageTk.PhotoImage(g)
+        return self._slike[stanje]
+
+    def crtaj(self, stanje="mirno"):
+        self._postavi(self._slika(stanje))
+        self.p.itemconfig(self.strelica_id,
+                          fill=MENTA if stanje == "hover" else TXT3)
+        for i in (self.naslov_id, self.opis_id, self.strelica_id):
+            self.p.tag_raise(i)
+
+    def _klik(self, _e=None):
+        self.komanda()
 
 
 class App(tk.Tk):
 
     def __init__(self):
         super().__init__()
-        postavi_skalu(self.winfo_fpixels("1i"))
-        self.tk.call("tk", "scaling", self.winfo_fpixels("1i") / 72.0)
+        dpi = self.winfo_fpixels("1i")
+        postavi_skalu(dpi)
+        self.tk.call("tk", "scaling", dpi / 72.0)
+        izaberi_fontove(self)
 
+        self.W, self.H = s(700), s(790)
         self.title("Skidac")
-        self.configure(bg=BG)
-        self._centriraj(s(660), s(720))
-        self.minsize(s(620), s(680))
+        self.configure(bg="#04120c")
+        self.resizable(False, False)
         try:
             self.iconbitmap(core.resource_path("icon.ico"))
         except tk.TclError:
@@ -49,140 +96,289 @@ class App(tk.Tk):
         self.tip = "mp4"
         self.kvalitet = None
         self.folder = core.podrazumevani_folder()
-        self.kolacici = tk.BooleanVar(value=False)
+        self.kolacici = False
+        self.skida = False
+        self.poruka_uvod = ""
         self.red = queue.Queue()
-        self.slike = []          # reference, da GC ne pojede slike
 
+        self._postavljen = False
+        self.platno = None
         self.ekran_izbor()
         self.after(100, self._pumpa)
 
-    def _centriraj(self, w, h):
-        x = (self.winfo_screenwidth() - w) // 2
-        y = max(0, (self.winfo_screenheight() - h) // 2 - s(30))
-        self.geometry(f"{w}x{h}+{x}+{y}")
+    def _visina(self, h):
+        """Prozor raste prema sadrzaju, umesto da zjapi prazan."""
+        self.H = h
+        if not self._postavljen:
+            x = (self.winfo_screenwidth() - self.W) // 2
+            y = max(0, (self.winfo_screenheight() - self.H) // 2 - s(24))
+            self._postavljen = True
+        else:
+            x, y = self.winfo_x(), self.winfo_y()
+            y = min(y, max(0, self.winfo_screenheight() - h - s(60)))
+        self.geometry(f"{self.W}x{self.H}+{x}+{y}")
 
-    def _ocisti(self):
-        for w in self.winfo_children():
-            w.destroy()
-        self.slike.clear()
+    # ------------------------------------------------- platno
+
+    def _novo_platno(self):
+        """Sveže platno i sveža kopija pozadine, spremna za panele."""
+        if self.platno:
+            self.platno.destroy()
+        ocisti_kes()
+        self.platno = tk.Canvas(self, width=self.W, height=self.H,
+                                highlightthickness=0, bd=0, bg="#04120c")
+        self.platno.pack(fill="both", expand=True)
+        return draw.pozadina(self.W, self.H).copy()
+
+    def _prikazi_bazu(self, baza):
+        self.baza = baza
+        self.slika_baze = ImageTk.PhotoImage(baza)
+        self.platno.create_image(0, 0, anchor="nw", image=self.slika_baze)
+
+    def _veza(self, x, y, sadrzaj, komanda, sidro="nw", boja=MENTA,
+              font=None):
+        i = tekst(self.platno, x, y, sadrzaj, font or (FAM_B, 9), boja,
+                  sidro=sidro)
+        self.platno.tag_bind(i, "<Button-1>", lambda _e: komanda())
+        self.platno.tag_bind(i, "<Enter>", lambda _e: (
+            self.platno.itemconfig(i, fill=MENTA_HI),
+            self.platno.config(cursor="hand2")))
+        self.platno.tag_bind(i, "<Leave>", lambda _e: (
+            self.platno.itemconfig(i, fill=boja),
+            self.platno.config(cursor="")))
+        return i
 
     # ============================================= ekran 1: platforma
 
     def ekran_izbor(self):
-        self._ocisti()
-        okvir = tk.Frame(self, bg=BG)
-        okvir.pack(fill="both", expand=True, padx=s(52))
+        self.info = None
+        pad, kh, razmak = s(56), s(104), s(16)
+        blok = s(54) + s(22) + s(46) + kh + razmak + kh
+        self._visina(blok + s(150) * 2)
+        baza = self._novo_platno()
+        kw = self.W - pad * 2
+        y = (self.H - blok) // 2
 
-        # sadrzaj po sredini visine, da ne visi uz vrh
-        sredina = tk.Frame(okvir, bg=BG)
-        sredina.place(relx=0, rely=0.5, relwidth=1.0, anchor="w")
-        okvir = sredina
+        self._prikazi_bazu(baza)
+        tekst(self.platno, pad, y, "Skidac", (FAM_N, 30), TXT, senka=True)
+        tekst(self.platno, pad, y + s(54), "Odakle skidaš?", (FAM, 12), TXT2,
+              senka=True)
 
-        tk.Label(okvir, text="Skidac", bg=BG, fg=TXT,
-                 font=(FAM_B, 24)).pack(anchor="w")
-        tk.Label(okvir, text="Odakle skidaš?", bg=BG, fg=MUTED,
-                 font=(FAM, 11)).pack(anchor="w", pady=(s(6), s(34)))
-
+        ky = y + s(54) + s(22) + s(46)
         for kljuc, (naziv, opis, ikona, _n) in PLATFORME.items():
-            self._kartica_platforme(okvir, kljuc, naziv, opis, ikona)
-
-    def _kartica_platforme(self, master, kljuc, naziv, opis, ikona):
-        k = Kartica(master, bg=BG, pad=s(18))
-        k.pack(fill="x", pady=s(6))
-        k.configure(height=s(88))
-        k.pack_propagate(False)
-
-        slika = ikona(s(44))
-        self.slike.append(slika)
-        tk.Label(k.telo, image=slika, bg=CARD, bd=0).pack(side="left",
-                                                          padx=(0, s(16)))
-        tekst = tk.Frame(k.telo, bg=CARD)
-        tekst.pack(side="left", fill="y")
-        tk.Label(tekst, text=naziv, bg=CARD, fg=TXT,
-                 font=(FAM_B, 13)).pack(anchor="w")
-        tk.Label(tekst, text=opis, bg=CARD, fg=MUTED,
-                 font=(FAM, 9)).pack(anchor="w", pady=(s(3), 0))
-        strelica = tk.Label(k.telo, text="›", bg=CARD, fg=DIM, font=(FAM, 18))
-        strelica.pack(side="right")
-
-        def uđi(_e=None):
-            k.oboji(FIELD)
-            strelica.config(fg=MINT)
-
-        def izađi(_e=None):
-            k.oboji(CARD)
-            strelica.config(fg=DIM)
-
-        for w in [k, k.platno, k.telo] + potomci(k.telo):
-            w.bind("<Button-1>", lambda _e: self.ekran_link(kljuc))
-            w.bind("<Enter>", uđi)
-            w.bind("<Leave>", izađi)
-            try:
-                w.config(cursor="hand2")
-            except tk.TclError:
-                pass
+            KarticaPlatforme(self.platno, baza, pad, ky, kw, kh, naziv, opis,
+                             ikona, lambda k=kljuc: self.ekran_link(k))
+            ky += kh + razmak
 
     # ============================================= ekran 2: link
 
     def ekran_link(self, izvor):
         self.izvor = izvor
         self.info = None
-        self._ocisti()
-        naziv, _opis, ikona, nagovestaj = PLATFORME[izvor]
+        self.url = ""
+        self.skida = False
+        self.poruka_uvod = "Kopiraj link i nalepi ga ovde — Ctrl+V."
+        self._crtaj_link()
 
-        glava = tk.Frame(self, bg=BG)
-        glava.pack(fill="x", padx=s(38), pady=(s(24), 0))
-        nazad = tk.Label(glava, text="‹  Nazad", bg=BG, fg=MUTED,
-                         font=(FAM, 10), cursor="hand2")
-        nazad.pack(side="left")
-        nazad.bind("<Button-1>", lambda _e: self.ekran_izbor())
-        nazad.bind("<Enter>", lambda _e: nazad.config(fg=TXT))
-        nazad.bind("<Leave>", lambda _e: nazad.config(fg=MUTED))
+    def prikazi(self, url, info):
+        self.url, self.info = url, info
+        self.formati = core.rezolucije(info)
+        self.skida = False
+        self.tip = "mp4"
+        self.kvalitet = self.formati[0][1]
+        self.poruka_uvod = ""
+        self._crtaj_link()
 
-        znak = ikona(s(20), bg=BG)
-        self.slike.append(znak)
-        desno = tk.Frame(glava, bg=BG)
-        desno.pack(side="right")
-        tk.Label(desno, text=naziv, bg=BG, fg=MUTED,
-                 font=(FAM_B, 10)).pack(side="right", padx=(s(8), 0))
-        tk.Label(desno, image=znak, bg=BG, bd=0).pack(side="right")
+    def _raspored(self):
+        """Sve koordinate unapred — panel mora u sliku pre nego što se crta."""
+        r = {}
+        pad = s(46)
+        r["pad"] = pad
+        r["polje_y"] = s(88)
+        r["polje_h"] = s(54)
+        r["dug_w"] = s(122)
+        r["polje_w"] = self.W - pad * 2 - r["dug_w"] - s(12)
 
-        telo = tk.Frame(self, bg=BG)
-        telo.pack(fill="both", expand=True, padx=s(38), pady=(s(20), s(26)))
+        y = r["polje_y"] + r["polje_h"] + s(18)
+        if self.izvor == "instagram":
+            r["kolacici_y"] = y
+            y += s(26)
+        r["status_y"] = y
+        y += s(30)
 
-        red_link = tk.Frame(telo, bg=BG)
-        red_link.pack(fill="x")
-        self.polje = Polje(red_link, bg=BG, nagovestaj=nagovestaj)
-        self.polje.pack(side="left", fill="x", expand=True)
+        if not self.info:
+            r["visina"] = y + s(26)
+            return r
+
+        r["kx"], r["kw"] = pad, self.W - pad * 2
+        r["ky"] = y
+        up = s(24)
+        r["ux"] = r["kx"] + up
+        r["uw"] = r["kw"] - up * 2
+        r["tw"], r["th"] = s(172), s(97)
+        r["cip_w"] = (r["uw"] - s(8) * 3) // 4
+        r["cip_h"] = s(38)
+        redovi = math.ceil(len(self._stavke()) / 4)
+
+        y = r["ky"] + up
+        r["y_slicica"] = y
+        y += r["th"] + s(22)
+        r["y_linija"] = y
+        y += s(20)
+        r["y_nal_format"] = y
+        y += s(16)
+        r["y_segment"] = y
+        y += s(42) + s(20)
+        r["y_nal_kval"] = y
+        y += s(16)
+        r["y_cipovi"] = y
+        y += redovi * (r["cip_h"] + s(8)) - s(8) + s(20)
+        r["y_folder"] = y
+        y += s(28)
+        r["y_dugme"] = y
+        y += s(50)
+        if self.skida:
+            y += s(16)
+            r["y_traka"] = y
+            y += s(6) + s(14)
+            r["y_napredak"] = y
+            y += s(16)
+        else:
+            r["y_napredak"] = y + s(10)     # prazan red, ne zauzima visinu
+        r["kh"] = y + up - r["ky"]
+        r["visina"] = r["ky"] + r["kh"] + s(34)
+        return r
+
+    def _crtaj_link(self):
+        r = self._raspored()
+        naziv, _opis, ikona, nagovestaj = PLATFORME[self.izvor]
+        pad = r["pad"]
+
+        self._visina(r["visina"])
+        baza = self._novo_platno()
+        ik = ikona(s(22))
+        baza.paste(ik, (self.W - pad - s(22), s(34)), ik)
+        if self.info:
+            draw.panel(baza, r["kx"], r["ky"], r["kw"], r["kh"], s(26),
+                       belina=0.13, ivica=0.55, pomak=s(14), s_blur=s(18),
+                       s_jak=0.55)
+        self._prikazi_bazu(baza)
+        p = self.platno
+
+        # --- zaglavlje
+        self._veza(pad, s(40), "‹  Nazad", self.ekran_izbor, boja=TXT2,
+                   font=(FAM, 10))
+        tekst(p, self.W - pad - s(30), s(45), naziv, (FAM_B, 10), TXT2,
+              sidro="e")
+
+        self.polje = Polje(p, baza, pad, r["polje_y"], r["polje_w"],
+                           r["polje_h"], nagovestaj=nagovestaj)
         self.polje.entry.bind("<Return>", lambda _e: self.proveri())
-        self.dug_proveri = Dugme(red_link, "Proveri", self.proveri, bg=BG,
-                                 stil="glavno", height=s(46), width=s(108))
-        self.dug_proveri.pack(side="left", padx=(s(10), 0))
+        if self.url:
+            self.polje.postavi(self.url)
+        self.dug_proveri = Dugme(p, baza, self.W - pad - r["dug_w"],
+                                 r["polje_y"], r["dug_w"], r["polje_h"],
+                                 "Proveri", self.proveri, stil="glavno",
+                                 font=(FAM_B, 11))
 
-        if izvor == "instagram":
-            tk.Checkbutton(
-                telo, text="Objava traži prijavu — uzmi kolačiće iz Chrome-a",
-                variable=self.kolacici, bg=BG, fg=MUTED, font=(FAM, 9),
-                selectcolor=FIELD, activebackground=BG, activeforeground=TXT,
-                highlightthickness=0, bd=0, cursor="hand2").pack(
-                    anchor="w", pady=(s(12), 0))
+        if self.izvor == "instagram":
+            self._kvacica(pad, r["kolacici_y"])
 
-        self.status = tk.Label(telo, text="", bg=BG, fg=MUTED, font=(FAM, 9),
-                               wraplength=s(540), justify="left")
-        self.status.pack(anchor="w", pady=(s(12), 0))
+        self.status_id = tekst(p, pad, r["status_y"], self.poruka_uvod,
+                               (FAM, 9), TXT3, sirina=self.W - pad * 2)
 
-        self._status("Kopiraj link iz pretraživača i nalepi ga ovde — Ctrl+V.")
-        self.kartica = Kartica(telo, bg=BG, pad=s(22))
-        self.after(150, self.polje.fokusiraj)
+        if self.info:
+            self._crtaj_karticu(r)
+        else:
+            self.after(150, self.polje.fokusiraj)
+
+    def _kvacica(self, x, y):
+        """Prekidač za kolačiće — sitan, samo za Instagram."""
+        def prebaci():
+            self.kolacici = not self.kolacici
+            self.platno.itemconfig(self.kv_id,
+                                   text="●" if self.kolacici else "○",
+                                   fill=MENTA if self.kolacici else TXT3)
+        self.kv_id = tekst(self.platno, x, y, "●" if self.kolacici else "○",
+                           (FAM, 10), MENTA if self.kolacici else TXT3)
+        opis = self._veza(x + s(18), y + s(1),
+                          "Objava traži prijavu — uzmi kolačiće iz Chrome-a",
+                          prebaci, boja=TXT3, font=(FAM, 9))
+        self.platno.tag_bind(self.kv_id, "<Button-1>", lambda _e: prebaci())
+        self.platno.tag_bind(self.kv_id, "<Enter>",
+                             lambda _e: self.platno.config(cursor="hand2"))
+        self.platno.tag_bind(self.kv_id, "<Leave>",
+                             lambda _e: self.platno.config(cursor=""))
+        return opis
+
+    # ============================================= kartica sa klipom
+
+    def _crtaj_karticu(self, r):
+        p, baza, info = self.platno, self.baza, self.info
+        ux, uw = r["ux"], r["uw"]
+
+        self.slicica_box = (ux, r["y_slicica"], r["tw"], r["th"])
+        self.slicica_id = p.create_image(ux, r["y_slicica"], anchor="nw")
+        self._slicica_prazna()
+        if info.get("thumbnail"):
+            threading.Thread(target=self._citaj_slicicu,
+                             args=(info["thumbnail"], r["tw"], r["th"]),
+                             daemon=True).start()
+
+        nx = ux + r["tw"] + s(20)
+        tekst(p, nx, r["y_slicica"] + s(4),
+              core.skrati(info.get("title") or "Bez naslova", 80),
+              (FAM_B, 12), TXT, sirina=uw - r["tw"] - s(20))
+        meta = []
+        if info.get("uploader"):
+            meta.append(core.skrati(info["uploader"], 24))
+        if info.get("duration"):
+            meta.append(core.trajanje(info["duration"]))
+        if self.formati and self.formati[0][1]:
+            meta.append(f"do {self.formati[0][1]}p")
+        tekst(p, nx, r["y_slicica"] + s(34), "   ·   ".join(meta),
+              (FAM, 9), TXT3)
+
+        p.create_line(ux, r["y_linija"], ux + uw, r["y_linija"],
+                      fill="#417563")
+
+        nalepnica(p, ux, r["y_nal_format"], "Format")
+        self.segment = Segment(p, baza, ux, r["y_segment"], s(296), s(42),
+                               [("MP4  ·  video", "mp4"),
+                                ("MP3  ·  zvuk", "mp3")], self._promeni_tip)
+
+        self.nal_kval_id = nalepnica(p, ux, r["y_nal_kval"], "Rezolucija")
+        self.cip_raspored = (ux, r["y_cipovi"], r["cip_w"], r["cip_h"])
+        self.cipovi = []
+        self._napuni_cipove()
+
+        nalepnica(p, ux, r["y_folder"] + s(4), "Čuvam u")
+        self.folder_id = tekst(p, ux + s(70), r["y_folder"] + s(3),
+                               self._kratak_put(), (FAM, 9), TXT2)
+        self._veza(ux + uw, r["y_folder"] + s(3), "Promeni",
+                   self._izaberi_folder, sidro="ne")
+
+        self.dug_skini = Dugme(p, baza, ux, r["y_dugme"], uw, s(50), "Skini",
+                               self.skini, stil="glavno", font=(FAM_B, 12))
+        self.traka = (Traka(p, baza, ux, r["y_traka"], uw, s(6))
+                      if self.skida else None)
+        self.napredak_id = tekst(p, ux, r["y_napredak"], "", (FAM, 9), TXT2,
+                                 sirina=uw)
+        if not core.FFMPEG:
+            self._status("⚠  Nema ffmpeg-a — MP3 i 1080p+ neće raditi.", CRVENA)
+
+    def _slicica_prazna(self):
+        x, y, w, h = self.slicica_box
+        self.sl_slicica = ImageTk.PhotoImage(
+            draw.staklo(self.baza, x, y, w, h, s(12), belina=0.10, ivica=0.40))
+        self.platno.itemconfig(self.slicica_id, image=self.sl_slicica)
 
     # ============================================= provera linka
 
     def proveri(self):
         url, greska = core.sredi_url(self.polje.get(), self.izvor)
         if greska:
-            return self._status(greska, RED)
-
-        self.kartica.pack_forget()
+            return self._status(greska, CRVENA)
         self.dug_proveri.ukljuci(False)
         self.dug_proveri.natpis("Čitam…")
         self._status("Tražim podatke o klipu…")
@@ -190,8 +386,8 @@ class App(tk.Tk):
 
     def _citaj(self, url):
         try:
-            info = core.procitaj(url, self.izvor, self.kolacici.get())
-            self.red.put(("info", (url, info)))
+            self.red.put(("info", (url, core.procitaj(url, self.izvor,
+                                                      self.kolacici))))
         except Exception as e:
             self.red.put(("greska_info", core.poruka(e)))
 
@@ -201,102 +397,29 @@ class App(tk.Tk):
                 url, headers={"User-Agent": "Mozilla/5.0"})
             sirovo = urllib.request.urlopen(zahtev, timeout=12).read()
             im = Image.open(io.BytesIO(sirovo)).convert("RGB")
-            self.red.put(("slicica", zaobli(uklopi(im, w, h), s(10))))
+            self.red.put(("slicica", draw.uklopi(im, w, h)))
         except Exception:
             pass
 
-    # ============================================= kartica sa klipom
+    # ============================================= izbori
 
-    def prikazi(self, url, info):
-        self.url, self.info = url, info
-        self.formati = core.rezolucije(info)
-        self.dug_proveri.ukljuci(True)
-        self.dug_proveri.natpis("Proveri")
-        self._status("")
-
-        for w in self.kartica.telo.winfo_children():
-            w.destroy()
-        self.kartica.pack(fill="x", pady=(s(14), 0))
-        telo = self.kartica.telo
-
-        self._zaglavlje(telo, info)
-        tk.Frame(telo, bg=LINE, height=1).pack(fill="x", pady=(s(18), s(16)))
-        self._izbor_formata(telo)
-        self._izbor_kvaliteta(telo)
-        self._red_foldera(telo)
-
-        self.dug_skini = Dugme(telo, "Skini", self.skini, bg=CARD,
-                               stil="glavno", height=s(48), font=(FAM_B, 11))
-        self.dug_skini.pack(fill="x")
-
-        self.traka = Traka(telo, bg=CARD)
-        self.napredak = tk.Label(telo, text="", bg=CARD, fg=MUTED,
-                                 font=(FAM, 9), wraplength=s(500),
-                                 justify="left")
-
-        if not core.FFMPEG:
-            tk.Label(telo, text="⚠  Nema ffmpeg-a — MP3 i 1080p+ neće raditi.",
-                     bg=CARD, fg=RED, font=(FAM, 9)).pack(anchor="w",
-                                                          pady=(s(12), 0))
-
-    def _zaglavlje(self, telo, info):
-        vrh = tk.Frame(telo, bg=CARD)
-        vrh.pack(fill="x")
-
-        tw, th = s(152), s(86)
-        prazno = rr(tw, th, s(10), FIELD, CARD)
-        self.slike.append(prazno)
-        self.slicica = tk.Label(vrh, image=prazno, bg=CARD, bd=0)
-        self.slicica.pack(side="left")
-        if info.get("thumbnail"):
-            threading.Thread(target=self._citaj_slicicu,
-                             args=(info["thumbnail"], tw, th),
-                             daemon=True).start()
-
-        desno = tk.Frame(vrh, bg=CARD)
-        desno.pack(side="left", fill="both", expand=True, padx=(s(16), 0))
-        tk.Label(desno, text=core.skrati(info.get("title") or "Bez naslova", 72),
-                 bg=CARD, fg=TXT, font=(FAM_B, 11), wraplength=s(360),
-                 justify="left").pack(anchor="w")
-
-        meta = []
-        if info.get("uploader"):
-            meta.append(core.skrati(info["uploader"], 26))
-        if info.get("duration"):
-            meta.append(core.trajanje(info["duration"]))
-        if self.formati and self.formati[0][1]:
-            meta.append(f"do {self.formati[0][1]}p")
-        tk.Label(desno, text="   ·   ".join(meta), bg=CARD, fg=MUTED,
-                 font=(FAM, 9)).pack(anchor="w", pady=(s(7), 0))
-
-    def _izbor_formata(self, telo):
-        nalepnica(telo, "Format")
-        Segment(telo, [("MP4  ·  video", "mp4"), ("MP3  ·  zvuk", "mp3")],
-                self._promeni_tip, bg=CARD,
-                width=s(280)).pack(anchor="w", pady=(s(8), s(16)))
-
-    def _izbor_kvaliteta(self, telo):
-        self.natpis_kval = nalepnica(telo, "Rezolucija")
-        self.mreza = tk.Frame(telo, bg=CARD)
-        self.mreza.pack(fill="x", pady=(s(8), s(14)))
-        self.cipovi = []
-        self._napuni_cipove()
+    def _stavke(self):
+        if self.tip == "mp4":
+            return list(self.formati)
+        return [(f"{b} kbps", b) for b in core.BITRATE]
 
     def _napuni_cipove(self):
         for c in self.cipovi:
-            c.destroy()
+            c.obrisi()
         self.cipovi = []
-
-        if self.tip == "mp4":
-            stavke = list(self.formati)
-        else:
-            stavke = [(f"{b} kbps", b) for b in core.BITRATE]
+        x0, y0, cw, ch = self.cip_raspored
+        stavke = self._stavke()
         self.kvalitet = stavke[0][1] if self.tip == "mp4" else 192
 
         for i, (labela, vrednost) in enumerate(stavke):
-            c = Cip(self.mreza, labela, vrednost, self._izaberi_kvalitet, bg=CARD)
-            c.grid(row=i // 4, column=i % 4, padx=(0, s(8)), pady=(0, s(8)),
-                   sticky="w")
+            c = Cip(self.platno, self.baza,
+                    x0 + (i % 4) * (cw + s(8)), y0 + (i // 4) * (ch + s(8)),
+                    cw, ch, labela, vrednost, self._izaberi_kvalitet)
             c.izaberi(vrednost == self.kvalitet)
             self.cipovi.append(c)
 
@@ -307,19 +430,10 @@ class App(tk.Tk):
 
     def _promeni_tip(self, vrednost):
         self.tip = vrednost
-        self.natpis_kval.config(
+        self.platno.itemconfig(
+            self.nal_kval_id,
             text="REZOLUCIJA" if vrednost == "mp4" else "BITRATE ZVUKA")
         self._napuni_cipove()
-
-    def _red_foldera(self, telo):
-        red = tk.Frame(telo, bg=CARD)
-        red.pack(fill="x", pady=(0, s(18)))
-        tk.Label(red, text="Čuvam u", bg=CARD, fg=DIM,
-                 font=(FAM_B, 8)).pack(side="left")
-        self.natpis_folder = tk.Label(red, text=self._kratak_put(), bg=CARD,
-                                      fg=MUTED, font=(FAM, 9))
-        self.natpis_folder.pack(side="left", padx=(s(10), 0))
-        veza(red, "Promeni", self._izaberi_folder, bg=CARD).pack(side="right")
 
     def _kratak_put(self):
         delovi = self.folder.replace("/", "\\").split("\\")
@@ -329,29 +443,28 @@ class App(tk.Tk):
         d = filedialog.askdirectory(initialdir=self.folder)
         if d:
             self.folder = os.path.normpath(d)
-            self.natpis_folder.config(text=self._kratak_put())
+            self.platno.itemconfig(self.folder_id, text=self._kratak_put())
 
     # ============================================= skidanje
 
     def skini(self):
         if not os.path.isdir(self.folder):
-            return self._status("Taj folder ne postoji.", RED)
+            return self._napredak("Taj folder ne postoji.", CRVENA)
         if self.tip == "mp3" and not core.FFMPEG:
-            return self._status("Za MP3 je potreban ffmpeg.", RED)
+            return self._napredak("Za MP3 je potreban ffmpeg.", CRVENA)
 
+        self.skida = True
+        self._crtaj_link()                      # kartica se produzi za traku
         self.dug_skini.ukljuci(False)
         self.dug_skini.natpis("Skidam…")
         self.dug_proveri.ukljuci(False)
-        self.traka.pack(fill="x", pady=(s(16), s(8)))
-        self.traka.postavi(0)
-        self.napredak.pack(anchor="w")
-        self.napredak.config(text="Krećem…", fg=MUTED)
+        self._napredak("Krećem…")
         threading.Thread(target=self._skidaj, daemon=True).start()
 
     def _skidaj(self):
         try:
             core.skini(self.url, self.izvor, self.folder, self.tip,
-                       self.kvalitet, self.kolacici.get(),
+                       self.kvalitet, self.kolacici,
                        na_napredak=self._kuka, na_obradu=self._kuka_obrada)
             self.red.put(("gotovo", None))
         except Exception as e:
@@ -387,24 +500,23 @@ class App(tk.Tk):
                     self.prikazi(*podatak)
 
                 elif vrsta == "slicica":
-                    slika = ImageTk.PhotoImage(podatak)
-                    self.slike.append(slika)
-                    self.slicica.config(image=slika)
+                    self._stavi_slicicu(podatak)
 
                 elif vrsta == "greska_info":
                     self.dug_proveri.ukljuci(True)
                     self.dug_proveri.natpis("Proveri")
-                    self._status(podatak, RED)
+                    self._status(podatak, CRVENA)
 
                 elif vrsta == "napredak":
-                    pct, tekst = podatak
-                    self.traka.postavi(pct)
-                    self.napredak.config(text=tekst, fg=MUTED)
+                    pct, poruka = podatak
+                    if self.traka:
+                        self.traka.postavi(pct)
+                    self._napredak(poruka)
 
                 elif vrsta == "gotovo":
-                    self.traka.postavi(100)
-                    self.napredak.config(text="✓  Gotovo — fajl je u folderu.",
-                                         fg=MINT)
+                    if self.traka:
+                        self.traka.postavi(100)
+                    self._napredak("✓  Gotovo — fajl je u folderu.", MENTA)
                     self._odblokiraj()
                     try:
                         os.startfile(self.folder)
@@ -412,16 +524,29 @@ class App(tk.Tk):
                         pass
 
                 elif vrsta == "greska":
-                    self.napredak.config(text=podatak, fg=RED)
+                    self._napredak(podatak, CRVENA)
                     self._odblokiraj()
         except queue.Empty:
             pass
         self.after(120, self._pumpa)
+
+    def _stavi_slicicu(self, im):
+        """Slika se spaja sa pozadinom u Pillow-u — pouzdanije od alfe na platnu."""
+        x, y, w, h = self.slicica_box
+        podloga = self.baza.crop((x, y, x + w, y + h))
+        slika = im.copy()
+        slika.putalpha(draw.maska(w, h, s(12)))
+        podloga.paste(slika, (0, 0), slika)
+        self.sl_slicica = ImageTk.PhotoImage(podloga)
+        self.platno.itemconfig(self.slicica_id, image=self.sl_slicica)
 
     def _odblokiraj(self):
         self.dug_skini.ukljuci(True)
         self.dug_skini.natpis("Skini")
         self.dug_proveri.ukljuci(True)
 
-    def _status(self, tekst, boja=MUTED):
-        self.status.config(text=tekst, fg=boja)
+    def _status(self, sadrzaj, boja=TXT3):
+        self.platno.itemconfig(self.status_id, text=sadrzaj, fill=boja)
+
+    def _napredak(self, sadrzaj, boja=TXT2):
+        self.platno.itemconfig(self.napredak_id, text=sadrzaj, fill=boja)

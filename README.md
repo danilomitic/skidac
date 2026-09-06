@@ -18,8 +18,8 @@ Instagram objave koje traze prijavu: cekiraj opciju za kolacice iz Chrome-a
 ```
 app.py              ulazna tacka (DPI + pokretanje)
 skidac/theme.py     boje, fontovi, skaliranje na DPI
-skidac/draw.py      zaobljene pozadine i ikonice (crta se Pillow-om)
-skidac/widgets.py   dugme, cip, segment, polje, traka, kartica
+skidac/draw.py      gradijent pozadine, staklo, senke, ikonice
+skidac/widgets.py   kontrole nacrtane na platnu (dugme, cip, segment...)
 skidac/core.py      sve oko yt-dlp i fajlova, bez ijednog widgeta
 skidac/gui.py       dva ekrana i njihova logika
 ```

@@ -1,173 +1,291 @@
 # -*- coding: utf-8 -*-
-"""Sitni widgeti sa zaobljenim ivicama — tkinter ih nema."""
+"""Kontrole nacrtane na platnu (Canvas), a ne obični tkinter widgeti.
+
+Razlog: staklo mora da pokaže pozadinu ispod sebe. Obican tk.Label ima
+jednu punu boju i napravio bi ružnu pravougaonu rupu preko gradijenta.
+Zato je sve — i tekst i dugmad — nacrtano na jednom platnu.
+"""
 
 import tkinter as tk
 
-from .draw import rr
-from .theme import (BG, CARD, DIM, FAM, FAM_B, FIELD, HOVER, INK, LINE, MINT,
-                    MINT_DK, MINT_HI, MUTED, TXT, s)
+from .draw import maska, na_platno, staklo
+from .theme import (FAM, FAM_B, INK, MENTA, MENTA_HI, TXT, TXT2, TXT3, s)
+
+_kes = {}
 
 
-class Dugme(tk.Canvas):
-    """Zaobljeno dugme: slika kao pozadina, tekst preko nje."""
+def _staklo_slika(baza, x, y, w, h, r, **kw):
+    """Renderovano staklo za jedno mesto — keširano, da hover bude trenutan."""
+    kljuc = (x, y, w, h, r, tuple(sorted(kw.items())))
+    if kljuc not in _kes:
+        _kes[kljuc] = na_platno(staklo(baza, x, y, w, h, r, **kw))
+    return _kes[kljuc]
+
+
+def ocisti_kes():
+    _kes.clear()
+
+
+# ---------------------------------------------------------------- tekst
+
+def tekst(platno, x, y, sadrzaj, font, boja=TXT, sidro="nw", sirina=None,
+          senka=False):
+    """Tekst na platnu; senka=True za naslove direktno na gradijentu."""
+    if senka:
+        platno.create_text(x + 1, y + 1, text=sadrzaj, font=font, anchor=sidro,
+                           fill="#03150e", width=sirina)
+    return platno.create_text(x, y, text=sadrzaj, font=font, anchor=sidro,
+                              fill=boja, width=sirina)
+
+
+def nalepnica(platno, x, y, sadrzaj):
+    """Sitan naslov iznad grupe kontrola."""
+    return tekst(platno, x, y, sadrzaj.upper(), (FAM_B, 8), TXT3)
+
+
+# ---------------------------------------------------------------- osnova
+
+class Element:
+    """Slika + tekst na platnu, sa hover i klik stanjima."""
+
+    def __init__(self, platno, baza, x, y, w, h):
+        self.p, self.baza = platno, baza
+        self.x, self.y, self.w, self.h = x, y, w, h
+        self.oznaka = f"el{id(self)}"
+        self.ukljuceno = True
+        self.slika_id = platno.create_image(x, y, anchor="nw", tags=self.oznaka)
+        self.tekst_id = None
+
+        platno.tag_bind(self.oznaka, "<Enter>", self._ulaz)
+        platno.tag_bind(self.oznaka, "<Leave>", self._izlaz)
+        platno.tag_bind(self.oznaka, "<Button-1>", self._klik)
+
+    def _ulaz(self, _e=None):
+        if self.ukljuceno:
+            self.p.config(cursor="hand2")
+            self.crtaj("hover")
+
+    def _izlaz(self, _e=None):
+        self.p.config(cursor="")
+        if self.ukljuceno:
+            self.crtaj("mirno")
+
+    def _klik(self, _e=None):
+        pass
+
+    def crtaj(self, stanje="mirno"):
+        raise NotImplementedError
+
+    def _postavi(self, slika, boja_teksta=None):
+        self.p.itemconfig(self.slika_id, image=slika)
+        self.slika = slika                       # referenca, da GC ne pojede
+        if self.tekst_id is not None and boja_teksta:
+            self.p.itemconfig(self.tekst_id, fill=boja_teksta)
+
+    def obrisi(self):
+        self.p.delete(self.oznaka)
+        if self.tekst_id is not None:
+            self.p.delete(self.tekst_id)
+
+
+class Dugme(Element):
 
     STILOVI = {
-        "glavno": (MINT, MINT_HI, MINT_DK, INK),
-        "tiho":   (FIELD, HOVER, FIELD, TXT),
+        # stanje: (belina, tint, jacina tinta, ivica, boja teksta)
+        "glavno": {
+            "mirno": (0.10, MENTA, 0.86, 0.85, INK),
+            "hover": (0.16, MENTA_HI, 0.92, 1.00, INK),
+            "klik":  (0.04, MENTA, 0.78, 0.60, INK),
+            "gasi":  (0.06, None, 0.0, 0.25, TXT3),
+        },
+        "tiho": {
+            "mirno": (0.15, None, 0.0, 0.50, TXT),
+            "hover": (0.26, None, 0.0, 0.75, TXT),
+            "klik":  (0.10, None, 0.0, 0.40, TXT),
+            "gasi":  (0.06, None, 0.0, 0.20, TXT3),
+        },
     }
 
-    def __init__(self, master, text, command, bg=CARD, stil="tiho",
-                 width=None, height=None, font=None):
-        self.stil, self.command, self.pozadina = stil, command, bg
-        self.font = font or (FAM_B, 10)
-        self.ukljuceno = True
+    def __init__(self, platno, baza, x, y, w, h, sadrzaj, komanda,
+                 stil="tiho", font=None, r=None):
+        super().__init__(platno, baza, x, y, w, h)
+        self.stil, self.komanda = stil, komanda
+        self.r = r if r is not None else min(h // 2, s(14))
+        self.tekst_id = tekst(platno, x + w // 2, y + h // 2, sadrzaj,
+                              font or (FAM_B, 10), sidro="center")
+        self.crtaj()
 
-        h = height or s(44)
-        if width is None:
-            proba = tk.Label(master, text=text, font=self.font)
-            width = proba.winfo_reqwidth() + s(40)
-            proba.destroy()
-
-        super().__init__(master, width=width, height=h, bg=bg,
-                         highlightthickness=0, bd=0, cursor="hand2")
-        self.w, self.h = width, h
-        self._slika = self.create_image(0, 0, anchor="nw")
-        self._tekst = self.create_text(width // 2, h // 2, text=text,
-                                       font=self.font)
-        self._crtaj(0)
-        self.bind("<Enter>", lambda _e: self._crtaj(1))
-        self.bind("<Leave>", lambda _e: self._crtaj(0))
-        self.bind("<Button-1>", self._klik)
-        self.bind("<Configure>", self._razvuci)
-
-    def _razvuci(self, e):
-        """Canvas ne raste sam uz fill="x" — pomerimo tekst i preslikamo."""
-        if e.width != self.w:
-            self.w = e.width
-            self.coords(self._tekst, e.width // 2, self.h // 2)
-            self._crtaj(0)
-
-    def _crtaj(self, stanje):
-        norm, hover, pritisk, fg = self.STILOVI[self.stil]
+    def crtaj(self, stanje="mirno"):
         if not self.ukljuceno:
-            fill, fg = "#191d26", DIM
-        else:
-            fill = (norm, hover, pritisk)[stanje]
-        self.itemconfig(self._slika,
-                        image=rr(self.w, self.h, s(10), fill, self.pozadina))
-        self.itemconfig(self._tekst, fill=fg)
+            stanje = "gasi"
+        belina, tint, jak, ivica, boja = self.STILOVI[self.stil][stanje]
+        self._postavi(_staklo_slika(self.baza, self.x, self.y, self.w, self.h,
+                                    self.r, belina=belina, tint=tint,
+                                    tint_jak=jak, ivica=ivica), boja)
 
-    def _klik(self, _e):
+    def _klik(self, _e=None):
         if self.ukljuceno:
-            self._crtaj(2)
-            self.after(90, lambda: self._crtaj(1))
-            self.command()
+            self.crtaj("klik")
+            self.p.after(90, lambda: self.crtaj("hover"))
+            self.komanda()
 
     def ukljuci(self, on):
         self.ukljuceno = on
-        self.config(cursor="hand2" if on else "arrow")
-        self._crtaj(0)
+        self.crtaj()
 
     def natpis(self, t):
-        self.itemconfig(self._tekst, text=t)
+        self.p.itemconfig(self.tekst_id, text=t)
 
 
-class Cip(tk.Canvas):
-    """Mala pilula za izbor kvaliteta — bira se jedna iz grupe."""
+class Cip(Element):
+    """Pilula za izbor kvaliteta — bira se jedna iz grupe."""
 
-    def __init__(self, master, text, vrednost, command, bg=CARD):
-        self.vrednost, self.command, self.pozadina = vrednost, command, bg
+    def __init__(self, platno, baza, x, y, w, h, sadrzaj, vrednost, komanda):
+        super().__init__(platno, baza, x, y, w, h)
+        self.vrednost, self.komanda = vrednost, komanda
         self.izabran = False
-        font = (FAM_B, 9)
-        proba = tk.Label(master, text=text, font=font)
-        w, h = max(s(76), proba.winfo_reqwidth() + s(26)), s(34)
-        proba.destroy()
+        self.r = min(h // 2, s(12))
+        self.tekst_id = tekst(platno, x + w // 2, y + h // 2, sadrzaj,
+                              (FAM_B, 9), sidro="center")
+        self.crtaj()
 
-        super().__init__(master, width=w, height=h, bg=bg,
-                         highlightthickness=0, bd=0, cursor="hand2")
-        self.w, self.h = w, h
-        self._slika = self.create_image(0, 0, anchor="nw")
-        self._tekst = self.create_text(w // 2, h // 2, text=text, font=font)
-        self._crtaj()
-        self.bind("<Enter>", lambda _e: self._crtaj(True))
-        self.bind("<Leave>", lambda _e: self._crtaj(False))
-        self.bind("<Button-1>", lambda _e: self.command(vrednost))
-
-    def _crtaj(self, hover=False):
+    def crtaj(self, stanje="mirno"):
         if self.izabran:
-            fill, ivica, fg = MINT, MINT, INK
+            par = dict(belina=0.10, tint=MENTA, tint_jak=0.84, ivica=0.90)
+            boja = INK
+        elif stanje == "hover":
+            par = dict(belina=0.24, ivica=0.70)
+            boja = TXT
         else:
-            fill, ivica, fg = (HOVER if hover else FIELD), LINE, TXT
-        self.itemconfig(self._slika, image=rr(self.w, self.h, s(9), fill,
-                                              self.pozadina, ivica, 1))
-        self.itemconfig(self._tekst, fill=fg)
+            par = dict(belina=0.13, ivica=0.42)
+            boja = TXT2
+        self._postavi(_staklo_slika(self.baza, self.x, self.y, self.w, self.h,
+                                    self.r, **par), boja)
+
+    def _klik(self, _e=None):
+        self.komanda(self.vrednost)
 
     def izaberi(self, on):
         self.izabran = on
-        self._crtaj()
+        self.crtaj()
 
 
-class Segment(tk.Canvas):
-    """Prekidač sa dve opcije — pilula stoji ispod izabrane."""
+class Segment(Element):
+    """Prekidač sa dve opcije — staklena pilula stoji ispod izabrane."""
 
-    def __init__(self, master, opcije, command, bg=CARD, width=None):
-        self.opcije, self.command, self.pozadina = opcije, command, bg
+    def __init__(self, platno, baza, x, y, w, h, opcije, komanda):
+        super().__init__(platno, baza, x, y, w, h)
+        self.opcije, self.komanda = opcije, komanda
         self.izbor = opcije[0][1]
-        w, h = width or s(280), s(42)
-        super().__init__(master, width=w, height=h, bg=bg,
-                         highlightthickness=0, bd=0, cursor="hand2")
-        self.w, self.h = w, h
-        self._trag = self.create_image(0, 0, anchor="nw")
-        self._pilula = self.create_image(0, 0, anchor="nw")
-        n = len(opcije)
-        self._natpisi = [
-            self.create_text(int(w / n * (i + 0.5)), h // 2, text=lab,
-                             font=(FAM_B, 10))
-            for i, (lab, _v) in enumerate(opcije)]
-        self.bind("<Button-1>", self._klik)
-        self._crtaj()
+        self.r = min(h // 2, s(13))
 
-    def _crtaj(self):
+        # trag (cela traka) se ne menja, pa se crta odmah
+        self._postavi(_staklo_slika(baza, x, y, w, h, self.r,
+                                    belina=0.08, ivica=0.35))
+        n = len(opcije)
+        self.pad = s(4)
+        self.pw = int(w / n) - self.pad * 2
+        self.ph = h - self.pad * 2
+        self.pilula_id = platno.create_image(0, 0, anchor="nw",
+                                             tags=self.oznaka)
+        self.natpisi = [
+            tekst(platno, int(x + w / n * (i + 0.5)), y + h // 2, lab,
+                  (FAM_B, 10), sidro="center")
+            for i, (lab, _v) in enumerate(opcije)]
+        self.crtaj()
+
+    def crtaj(self, stanje="mirno"):
         n = len(self.opcije)
-        self.itemconfig(self._trag,
-                        image=rr(self.w, self.h, s(11), FIELD, self.pozadina))
         i = [v for _l, v in self.opcije].index(self.izbor)
-        pad = s(4)
-        self.coords(self._pilula, int(self.w / n * i) + pad, pad)
-        self.itemconfig(self._pilula, image=rr(int(self.w / n) - pad * 2,
-                                               self.h - pad * 2, s(8),
-                                               MINT, FIELD))
-        for j, t in enumerate(self._natpisi):
-            self.itemconfig(t, fill=INK if j == i else MUTED)
+        px = int(self.x + self.w / n * i) + self.pad
+        py = self.y + self.pad
+        self.p.coords(self.pilula_id, px, py)
+        self.pilula = _staklo_slika(self.baza, px, py, self.pw, self.ph,
+                                    min(self.ph // 2, s(10)), belina=0.12,
+                                    tint=MENTA, tint_jak=0.82, ivica=0.90)
+        self.p.itemconfig(self.pilula_id, image=self.pilula)
+        for j, t in enumerate(self.natpisi):
+            self.p.itemconfig(t, fill=INK if j == i else TXT2)
+        self.p.tag_raise(self.pilula_id)
+        for t in self.natpisi:
+            self.p.tag_raise(t)
+
+    def _ulaz(self, _e=None):
+        self.p.config(cursor="hand2")
+
+    def _izlaz(self, _e=None):
+        self.p.config(cursor="")
 
     def _klik(self, e):
-        i = min(len(self.opcije) - 1, max(0, int(e.x / (self.w / len(self.opcije)))))
+        n = len(self.opcije)
+        i = min(n - 1, max(0, int((e.x - self.x) / (self.w / n))))
         vrednost = self.opcije[i][1]
         if vrednost != self.izbor:
             self.izbor = vrednost
-            self._crtaj()
-            self.command(vrednost)
+            self.crtaj()
+            self.komanda(vrednost)
 
 
-class Polje(tk.Frame):
-    """Entry u zaobljenom okviru, sa sivim tekstom-nagoveštajem."""
+class Traka:
+    """Traka napretka: staklena šina i mentol ispuna."""
 
-    def __init__(self, master, bg=CARD, height=None, font=None, nagovestaj=""):
-        h = height or s(46)
-        super().__init__(master, bg=bg, height=h)
-        self.pack_propagate(False)
-        self.h, self.pozadina, self.nagovestaj = h, bg, nagovestaj
+    def __init__(self, platno, baza, x, y, w, h):
+        self.p, self.baza = platno, baza
+        self.x, self.y, self.w, self.h = x, y, w, h
+        self.sina = _staklo_slika(baza, x, y, w, h, h // 2, belina=0.10,
+                                  ivica=0.35, sjaj=False)
+        self.sina_id = platno.create_image(x, y, anchor="nw", image=self.sina)
+        self.ispuna_id = platno.create_image(x, y, anchor="nw")
+        self.pct = -1
+        self.postavi(0)
+
+    def postavi(self, pct):
+        pct = max(0, min(100, pct))
+        if abs(pct - self.pct) < 0.5:
+            return
+        self.pct = pct
+        fw = int(self.w * pct / 100)
+        if fw < self.h:
+            self.p.itemconfig(self.ispuna_id, state="hidden")
+            return
+        self.ispuna = _staklo_slika(self.baza, self.x, self.y, fw, self.h,
+                                    self.h // 2, belina=0.18, tint=MENTA,
+                                    tint_jak=0.90, ivica=0.9, sjaj=False)
+        self.p.itemconfig(self.ispuna_id, image=self.ispuna, state="normal")
+
+    def sakrij(self):
+        self.p.itemconfig(self.sina_id, state="hidden")
+        self.p.itemconfig(self.ispuna_id, state="hidden")
+
+
+class Polje:
+    """Jedini pravi widget — Entry, na staklenoj podlozi.
+
+    Entry mora da bude jedne pune boje, pa se ona uzorkuje iz samog stakla;
+    staklo je jako zamućeno i ujednačeno, tako da se spoj ne primeti.
+    """
+
+    def __init__(self, platno, baza, x, y, w, h, nagovestaj=""):
+        self.p, self.nagovestaj = platno, nagovestaj
+        self.x, self.y, self.w, self.h = x, y, w, h
         self.prazno = False
+        self.r = min(h // 2, s(14))
 
-        self.platno = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0)
-        self.platno.pack(fill="both", expand=True)
-        self._slika = self.platno.create_image(0, 0, anchor="nw")
-        self.entry = tk.Entry(self.platno, bg=FIELD, fg=TXT,
-                              font=font or (FAM, 10), relief="flat", bd=0,
-                              insertbackground=MINT, highlightthickness=0)
-        self._prozor = self.platno.create_window(s(15), h // 2, anchor="w",
-                                                 window=self.entry)
-        self.bind("<Configure>", self._razmesti)
+        self.mirna = staklo(baza, x, y, w, h, self.r, belina=0.13, ivica=0.45)
+        self.aktivna = staklo(baza, x, y, w, h, self.r, belina=0.20,
+                              tint=MENTA, tint_jak=0.10, ivica=0.95)
+        self.sl_mirna, self.sl_aktivna = na_platno(self.mirna), na_platno(self.aktivna)
+        self.slika_id = platno.create_image(x, y, anchor="nw",
+                                            image=self.sl_mirna)
+
+        self.entry = tk.Entry(platno, bg=self._uzorak(self.mirna), fg=TXT,
+                              font=(FAM, 10), relief="flat", bd=0,
+                              insertbackground=MENTA, highlightthickness=0,
+                              disabledbackground=self._uzorak(self.mirna))
+        self.prozor_id = platno.create_window(
+            x + s(16), y + h // 2, anchor="w", window=self.entry,
+            width=w - s(32), height=h - s(16))
+
         self.entry.bind("<FocusIn>", self._fokus_in)
         self.entry.bind("<FocusOut>", self._fokus_out)
         self.entry.bind("<Key>", self._taster)
@@ -175,21 +293,18 @@ class Polje(tk.Frame):
         if nagovestaj:
             self._nagovesti()
 
-    def _razmesti(self, _e=None):
-        w = self.winfo_width()
-        if w > 1:
-            self.platno.itemconfigure(self._prozor, width=w - s(30))
-            self._crtaj(self.focus_get() is self.entry)
-
-    def _crtaj(self, fokus):
-        w = max(self.winfo_width(), 1)
-        self.platno.itemconfig(self._slika, image=rr(
-            w, self.h, s(11), FIELD, self.pozadina, MINT if fokus else LINE, 1))
+    @staticmethod
+    def _uzorak(im):
+        """Prosečna boja sredine stakla — pozadina za Entry."""
+        w, h = im.size
+        sred = im.crop((w // 4, h // 3, w * 3 // 4, h * 2 // 3))
+        r, g, b = sred.resize((1, 1)).getpixel((0, 0))
+        return f"#{r:02x}{g:02x}{b:02x}"
 
     def _nagovesti(self):
         self.entry.delete(0, "end")
         self.entry.insert(0, self.nagovestaj)
-        self.entry.config(fg=DIM)
+        self.entry.config(fg=TXT3)
         self.prazno = True
 
     def _obrisi_nagovestaj(self):
@@ -199,107 +314,30 @@ class Polje(tk.Frame):
             self.prazno = False
 
     def _taster(self, e):
-        """Nagovestaj se sklanja tek kad se stvarno nesto kuca."""
         if self.prazno and e.keysym not in (
-                "Shift_L", "Shift_R", "Control_L", "Control_R",
-                "Alt_L", "Alt_R", "Tab", "Escape", "Caps_Lock"):
+                "Shift_L", "Shift_R", "Control_L", "Control_R", "Alt_L",
+                "Alt_R", "Tab", "Escape", "Caps_Lock"):
             self._obrisi_nagovestaj()
 
     def _fokus_in(self, _e):
         if self.prazno:
             self.entry.icursor(0)
-        self._crtaj(True)
+        self.p.itemconfig(self.slika_id, image=self.sl_aktivna)
+        self.entry.config(bg=self._uzorak(self.aktivna))
 
     def _fokus_out(self, _e):
         if self.nagovestaj and not self.entry.get().strip():
             self._nagovesti()
-        self._crtaj(False)
+        self.p.itemconfig(self.slika_id, image=self.sl_mirna)
+        self.entry.config(bg=self._uzorak(self.mirna))
 
     def get(self):
         return "" if self.prazno else self.entry.get()
 
+    def postavi(self, v):
+        self._obrisi_nagovestaj()
+        self.entry.delete(0, "end")
+        self.entry.insert(0, v)
+
     def fokusiraj(self):
         self.entry.focus_set()
-
-
-class Traka(tk.Canvas):
-    """Zaobljena traka napretka."""
-
-    def __init__(self, master, bg=CARD, height=None):
-        h = height or s(6)
-        super().__init__(master, height=h, bg=bg, highlightthickness=0, bd=0)
-        self.pozadina, self.h, self.pct = bg, h, 0
-        self._trag = self.create_image(0, 0, anchor="nw")
-        self._ispuna = self.create_image(0, 0, anchor="nw")
-        self.bind("<Configure>", lambda _e: self.postavi(self.pct))
-
-    def postavi(self, pct):
-        self.pct = max(0, min(100, pct))
-        w = max(self.winfo_width(), 1)
-        if w < 2:
-            return
-        self.itemconfig(self._trag,
-                        image=rr(w, self.h, self.h // 2, FIELD, self.pozadina))
-        fw = int(w * self.pct / 100)
-        if fw >= self.h:
-            self.itemconfig(self._ispuna, state="normal",
-                            image=rr(fw, self.h, self.h // 2, MINT, FIELD))
-        else:
-            self.itemconfig(self._ispuna, state="hidden")
-
-
-class Kartica(tk.Frame):
-    """Zaobljena kartica: canvas kao pozadina, sadržaj ide u .telo."""
-
-    def __init__(self, master, bg=BG, fill=CARD, pad=None, ivica=LINE):
-        super().__init__(master, bg=bg)
-        self.fill, self.pozadina, self.ivica = fill, bg, ivica
-        self.platno = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0)
-        self.platno.place(x=0, y=0, relwidth=1, relheight=1)
-        self._slika = self.platno.create_image(0, 0, anchor="nw")
-        self.telo = tk.Frame(self, bg=fill)
-        self.telo.pack(fill="both", expand=True,
-                       padx=pad if pad is not None else s(22),
-                       pady=pad if pad is not None else s(22))
-        self.bind("<Configure>", self.osvezi)
-
-    def osvezi(self, _e=None):
-        w, h = self.winfo_width(), self.winfo_height()
-        if w > 1 and h > 1:
-            self.platno.itemconfig(self._slika, image=rr(
-                w, h, s(16), self.fill, self.pozadina, self.ivica, 1))
-
-    def oboji(self, fill):
-        """Prefarba karticu i sve u njoj — za hover efekat."""
-        self.fill = fill
-        self.osvezi()
-        for w in [self.telo] + potomci(self.telo):
-            try:
-                w.config(bg=fill)
-            except tk.TclError:
-                pass
-
-
-def potomci(widget):
-    out = []
-    for c in widget.winfo_children():
-        out.append(c)
-        out.extend(potomci(c))
-    return out
-
-
-def nalepnica(master, tekst, bg=CARD):
-    """Sitan naslov iznad grupe kontrola."""
-    n = tk.Label(master, text=tekst.upper(), bg=bg, fg=DIM, font=(FAM_B, 8))
-    n.pack(anchor="w")
-    return n
-
-
-def veza(master, tekst, command, bg=CARD, font=None):
-    """Tekst koji se ponaša kao link."""
-    n = tk.Label(master, text=tekst, bg=bg, fg=MINT, font=font or (FAM_B, 9),
-                 cursor="hand2")
-    n.bind("<Button-1>", lambda _e: command())
-    n.bind("<Enter>", lambda _e: n.config(fg=MINT_HI))
-    n.bind("<Leave>", lambda _e: n.config(fg=MINT))
-    return n
