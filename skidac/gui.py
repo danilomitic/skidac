@@ -7,6 +7,7 @@ propušta ono što je iza njega. Zbog toga se ekran gradi u jednom prolazu:
 prvo se slika sklopi do kraja, pa se tek onda dodaju kontrole.
 """
 
+import ctypes
 import io
 import math
 import os
@@ -52,8 +53,8 @@ class KarticaPlatforme(Element):
 
     def _slika(self, stanje):
         if stanje not in self._slike:
-            par = (dict(belina=0.23, ivica=0.90) if stanje == "hover"
-                   else dict(belina=0.13, ivica=0.52))
+            par = (dict(belina=0.17, ivica=0.40) if stanje == "hover"
+                   else dict(belina=0.10, ivica=0.22))
             g = draw.staklo(self.baza, self.x, self.y, self.w, self.h,
                             self.r, **par)
             g.paste(self.ikona, self.ipoz, self.ikona)
@@ -82,12 +83,14 @@ class App(tk.Tk):
 
         self.W, self.H = s(700), s(790)
         self.title("Skidac")
-        self.configure(bg="#04120c")
+        self.configure(bg="#020705")
         self.resizable(False, False)
         try:
             self.iconbitmap(core.resource_path("icon.ico"))
         except tk.TclError:
             pass
+
+        self._tamna_traka()
 
         self.izvor = None
         self.info = None
@@ -105,6 +108,18 @@ class App(tk.Tk):
         self.platno = None
         self.ekran_izbor()
         self.after(100, self._pumpa)
+
+    def _tamna_traka(self):
+        """Windows inace nacrta svetlu naslovnu traku iznad tamnog prozora."""
+        try:
+            self.update_idletasks()
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            vrednost = ctypes.c_int(1)
+            for atribut in (20, 19):
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                    hwnd, atribut, ctypes.byref(vrednost), ctypes.sizeof(vrednost))
+        except Exception:
+            pass
 
     def _visina(self, h):
         """Prozor raste prema sadrzaju, umesto da zjapi prazan."""
@@ -126,7 +141,7 @@ class App(tk.Tk):
             self.platno.destroy()
         ocisti_kes()
         self.platno = tk.Canvas(self, width=self.W, height=self.H,
-                                highlightthickness=0, bd=0, bg="#04120c")
+                                highlightthickness=0, bd=0, bg="#020705")
         self.platno.pack(fill="both", expand=True)
         return draw.pozadina(self.W, self.H).copy()
 
@@ -260,8 +275,8 @@ class App(tk.Tk):
         baza.paste(ik, (self.W - pad - s(22), s(34)), ik)
         if self.info:
             draw.panel(baza, r["kx"], r["ky"], r["kw"], r["kh"], s(26),
-                       belina=0.13, ivica=0.55, pomak=s(14), s_blur=s(18),
-                       s_jak=0.55)
+                       belina=0.10, ivica=0.26, pomak=s(14), s_blur=s(18),
+                       s_jak=0.60)
         self._prikazi_bazu(baza)
         p = self.platno
 
@@ -326,9 +341,9 @@ class App(tk.Tk):
                              daemon=True).start()
 
         nx = ux + r["tw"] + s(20)
-        tekst(p, nx, r["y_slicica"] + s(4),
-              core.skrati(info.get("title") or "Bez naslova", 80),
-              (FAM_B, 12), TXT, sirina=uw - r["tw"] - s(20))
+        naslov_id = tekst(p, nx, r["y_slicica"] + s(4),
+                          core.skrati(info.get("title") or "Bez naslova", 80),
+                          (FAM_B, 12), TXT, sirina=uw - r["tw"] - s(20))
         meta = []
         if info.get("uploader"):
             meta.append(core.skrati(info["uploader"], 24))
@@ -336,11 +351,12 @@ class App(tk.Tk):
             meta.append(core.trajanje(info["duration"]))
         if self.formati and self.formati[0][1]:
             meta.append(f"do {self.formati[0][1]}p")
-        tekst(p, nx, r["y_slicica"] + s(34), "   ·   ".join(meta),
-              (FAM, 9), TXT3)
+        # meta ide ispod stvarne visine naslova — naslov ume da ide u dva reda
+        donja_ivica = p.bbox(naslov_id)[3]
+        tekst(p, nx, donja_ivica + s(8), "   ·   ".join(meta), (FAM, 9), TXT3)
 
         p.create_line(ux, r["y_linija"], ux + uw, r["y_linija"],
-                      fill="#417563")
+                      fill="#22453a")
 
         nalepnica(p, ux, r["y_nal_format"], "Format")
         self.segment = Segment(p, baza, ux, r["y_segment"], s(296), s(42),
@@ -370,7 +386,7 @@ class App(tk.Tk):
     def _slicica_prazna(self):
         x, y, w, h = self.slicica_box
         self.sl_slicica = ImageTk.PhotoImage(
-            draw.staklo(self.baza, x, y, w, h, s(12), belina=0.10, ivica=0.40))
+            draw.staklo(self.baza, x, y, w, h, s(12), belina=0.08, ivica=0.20))
         self.platno.itemconfig(self.slicica_id, image=self.sl_slicica)
 
     # ============================================= provera linka

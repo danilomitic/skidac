@@ -30,25 +30,26 @@ def pozadina(w, h):
     # (x, y, poluprečnik, boja) — u udelima veličine, da radi na svakom DPI
     # manje mrlje, sa tamnim prostorom izmedju — inace se sve slije u jednu zelenu
     for fx, fy, fr, boja in (
-        (0.04, -0.04, 0.34, "#3ff0ae"),
-        (0.40, 0.08, 0.24, SMARAGD),
-        (1.02, 0.14, 0.30, "#0ea5a0"),
-        (0.72, 0.52, 0.26, ZELENA),
-        (-0.04, 0.66, 0.24, TIRKIZ),
-        (0.98, 0.98, 0.30, SMARAGD),
+        (0.02, -0.06, 0.32, "#0c7a5c"),
+        (0.42, 0.06, 0.22, SMARAGD),
+        (1.04, 0.12, 0.28, TIRKIZ),
+        (0.74, 0.48, 0.24, ZELENA),
+        (-0.08, 0.60, 0.24, ZELENA),
+        (0.88, 0.92, 0.30, "#0a6b50"),
+        (0.20, 1.04, 0.24, TIRKIZ),
     ):
         x, y, r = fx * mw, fy * mh, fr * min(mw, mh)
         d.ellipse([x - r, y - r, x + r, y + r], fill=hx(boja))
 
     im = im.filter(ImageFilter.GaussianBlur(min(mw, mh) * 0.26))
     im = im.resize((w, h), Image.BICUBIC)
-    im = ImageEnhance.Brightness(im).enhance(0.62)   # neka ostane duboko
+    im = ImageEnhance.Brightness(im).enhance(0.86)   # baza je vec tamna
     im = ImageEnhance.Color(im).enhance(1.15)
 
     # sve tamnije ka dnu, da tekst ima gde da sedne
     pad = Image.new("L", (1, h))
     for y in range(h):
-        pad.putpixel((0, y), int(18 + 200 * (y / max(1, h - 1)) ** 1.35))
+        pad.putpixel((0, y), int(20 + 145 * (y / max(1, h - 1)) ** 1.15))
     im = Image.composite(Image.new("RGB", (w, h), hx(DUBINA)), im,
                          pad.resize((w, h)))
 
@@ -74,8 +75,8 @@ def maska(w, h, r):
     return m.resize((w, h), Image.LANCZOS)
 
 
-def staklo(poz, x, y, w, h, r, belina=0.14, blur=22, tint=None, tint_jak=0.0,
-           ivica=0.55, sjaj=True):
+def staklo(poz, x, y, w, h, r, belina=0.12, blur=22, tint=None, tint_jak=0.0,
+           ivica=0.30, sjaj=True):
     """Isečak pozadine pretvoren u stakleni panel.
 
     belina  — koliko je mlečno
@@ -84,8 +85,8 @@ def staklo(poz, x, y, w, h, r, belina=0.14, blur=22, tint=None, tint_jak=0.0,
     """
     w, h = max(1, int(w)), max(1, int(h))
     g = poz.crop((x, y, x + w, y + h)).filter(ImageFilter.GaussianBlur(blur))
-    g = ImageEnhance.Color(g).enhance(1.45)
-    g = ImageEnhance.Brightness(g).enhance(1.10)
+    g = ImageEnhance.Color(g).enhance(1.35)
+    g = ImageEnhance.Brightness(g).enhance(1.18)
 
     if tint and tint_jak:
         g = Image.blend(g, Image.new("RGB", (w, h), hx(tint)), tint_jak)
@@ -105,7 +106,7 @@ def _ivica(w, h, r, jacina):
     o = Image.new("L", (w * SS, h * SS), 0)
     ImageDraw.Draw(o).rounded_rectangle(
         [0, 0, w * SS - 1, h * SS - 1], radius=r * SS, outline=255,
-        width=max(1, int(1.4 * SS)))
+        width=max(1, int(1.0 * SS)))
     o = o.resize((w, h), Image.LANCZOS)
 
     pad = Image.new("L", (1, h))
@@ -120,7 +121,7 @@ def _sjaj(w, h, r):
     vis = max(2, int(h * 0.45))
     o = Image.new("L", (w, h), 0)
     ImageDraw.Draw(o).rounded_rectangle([1, 1, w - 2, vis],
-                                        radius=max(1, r - 1), fill=78)
+                                        radius=max(1, r - 1), fill=52)
     o = o.filter(ImageFilter.GaussianBlur(max(2, h * 0.13)))
 
     pad = Image.new("L", (1, h))

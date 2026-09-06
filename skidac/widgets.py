@@ -93,16 +93,16 @@ class Dugme(Element):
     STILOVI = {
         # stanje: (belina, tint, jacina tinta, ivica, boja teksta)
         "glavno": {
-            "mirno": (0.10, MENTA, 0.86, 0.85, INK),
-            "hover": (0.16, MENTA_HI, 0.92, 1.00, INK),
-            "klik":  (0.04, MENTA, 0.78, 0.60, INK),
-            "gasi":  (0.06, None, 0.0, 0.25, TXT3),
+            "mirno": (0.10, MENTA, 0.44, 0.34, TXT),
+            "hover": (0.15, MENTA_HI, 0.56, 0.50, TXT),
+            "klik":  (0.05, MENTA, 0.36, 0.26, TXT),
+            "gasi":  (0.05, None, 0.0, 0.14, TXT3),
         },
         "tiho": {
-            "mirno": (0.15, None, 0.0, 0.50, TXT),
-            "hover": (0.26, None, 0.0, 0.75, TXT),
-            "klik":  (0.10, None, 0.0, 0.40, TXT),
-            "gasi":  (0.06, None, 0.0, 0.20, TXT3),
+            "mirno": (0.11, None, 0.0, 0.26, TXT),
+            "hover": (0.19, None, 0.0, 0.42, TXT),
+            "klik":  (0.07, None, 0.0, 0.20, TXT),
+            "gasi":  (0.05, None, 0.0, 0.14, TXT3),
         },
     }
 
@@ -151,13 +151,13 @@ class Cip(Element):
 
     def crtaj(self, stanje="mirno"):
         if self.izabran:
-            par = dict(belina=0.10, tint=MENTA, tint_jak=0.84, ivica=0.90)
-            boja = INK
+            par = dict(belina=0.11, tint=MENTA, tint_jak=0.42, ivica=0.48)
+            boja = TXT
         elif stanje == "hover":
-            par = dict(belina=0.24, ivica=0.70)
+            par = dict(belina=0.18, ivica=0.34)
             boja = TXT
         else:
-            par = dict(belina=0.13, ivica=0.42)
+            par = dict(belina=0.09, ivica=0.18)
             boja = TXT2
         self._postavi(_staklo_slika(self.baza, self.x, self.y, self.w, self.h,
                                     self.r, **par), boja)
@@ -181,7 +181,7 @@ class Segment(Element):
 
         # trag (cela traka) se ne menja, pa se crta odmah
         self._postavi(_staklo_slika(baza, x, y, w, h, self.r,
-                                    belina=0.08, ivica=0.35))
+                                    belina=0.06, ivica=0.16))
         n = len(opcije)
         self.pad = s(4)
         self.pw = int(w / n) - self.pad * 2
@@ -202,10 +202,10 @@ class Segment(Element):
         self.p.coords(self.pilula_id, px, py)
         self.pilula = _staklo_slika(self.baza, px, py, self.pw, self.ph,
                                     min(self.ph // 2, s(10)), belina=0.12,
-                                    tint=MENTA, tint_jak=0.82, ivica=0.90)
+                                    tint=MENTA, tint_jak=0.42, ivica=0.48)
         self.p.itemconfig(self.pilula_id, image=self.pilula)
         for j, t in enumerate(self.natpisi):
-            self.p.itemconfig(t, fill=INK if j == i else TXT2)
+            self.p.itemconfig(t, fill=TXT if j == i else TXT2)
         self.p.tag_raise(self.pilula_id)
         for t in self.natpisi:
             self.p.tag_raise(t)
@@ -232,8 +232,8 @@ class Traka:
     def __init__(self, platno, baza, x, y, w, h):
         self.p, self.baza = platno, baza
         self.x, self.y, self.w, self.h = x, y, w, h
-        self.sina = _staklo_slika(baza, x, y, w, h, h // 2, belina=0.10,
-                                  ivica=0.35, sjaj=False)
+        self.sina = _staklo_slika(baza, x, y, w, h, h // 2, belina=0.08,
+                                  ivica=0.18, sjaj=False)
         self.sina_id = platno.create_image(x, y, anchor="nw", image=self.sina)
         self.ispuna_id = platno.create_image(x, y, anchor="nw")
         self.pct = -1
@@ -249,8 +249,8 @@ class Traka:
             self.p.itemconfig(self.ispuna_id, state="hidden")
             return
         self.ispuna = _staklo_slika(self.baza, self.x, self.y, fw, self.h,
-                                    self.h // 2, belina=0.18, tint=MENTA,
-                                    tint_jak=0.90, ivica=0.9, sjaj=False)
+                                    self.h // 2, belina=0.16, tint=MENTA,
+                                    tint_jak=0.72, ivica=0.5, sjaj=False)
         self.p.itemconfig(self.ispuna_id, image=self.ispuna, state="normal")
 
     def sakrij(self):
@@ -271,9 +271,9 @@ class Polje:
         self.prazno = False
         self.r = min(h // 2, s(14))
 
-        self.mirna = staklo(baza, x, y, w, h, self.r, belina=0.13, ivica=0.45)
-        self.aktivna = staklo(baza, x, y, w, h, self.r, belina=0.20,
-                              tint=MENTA, tint_jak=0.10, ivica=0.95)
+        self.mirna = staklo(baza, x, y, w, h, self.r, belina=0.09, ivica=0.20)
+        self.aktivna = staklo(baza, x, y, w, h, self.r, belina=0.13,
+                              tint=MENTA, tint_jak=0.08, ivica=0.55)
         self.sl_mirna, self.sl_aktivna = na_platno(self.mirna), na_platno(self.aktivna)
         self.slika_id = platno.create_image(x, y, anchor="nw",
                                             image=self.sl_mirna)
