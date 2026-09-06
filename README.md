@@ -37,12 +37,19 @@ otvaraju, pa linkovi ka njima ostaju neispunjeni.
 Instagram objave koje traze prijavu: cekiraj opciju za kolacice iz Chrome-a
 (moras biti ulogovan na Instagram u Chrome-u).
 
-## Svoja pozadina
+## Izgled
 
-Stavi `pozadina.png` (ili .jpg) pored `Skidac.exe` i aplikacija ce je
-koristiti umesto zelenog gradijenta. Slika se sece na sredini i uklapa u
-prozor, pa neka bude uspravna ili kvadratna, najmanje 1400x1600 px.
-Automatski se pritamni da tekst ostane citljiv.
+Pozadina prozora je tvoja radna povrsina — zamucena i pritamnjena. Snimak
+se uzima dok je prozor jos sakriven (da ne uslikamo sami sebe) i isece se
+po polozaju prozora, pa se osvezi kad prozor pomeris. Nije uzivo: ako se
+iza promeni sadrzaj, pomeri prozor ili ga pokreni ponovo.
+
+Paneli su namerno TAMNIJI od radne povrsine ispod sebe. Da su svetliji,
+beli tekst bi nestao cim je iza nesto svetlo.
+
+Ako umesto radne povrsine hoces svoju sliku, stavi `pozadina.png` (ili
+.jpg) pored `Skidac.exe` — najmanje 1400x1600 px, uspravna ili kvadratna.
+Ako snimak ekrana ne uspe, vraca se na zeleni gradijent.
 
 ## Kako je slozeno
 

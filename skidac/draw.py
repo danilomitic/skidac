@@ -10,13 +10,44 @@ panel stvarno pokazuje ono što je iza njega.
 import os
 import sys
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageTk
+from PIL import (Image, ImageDraw, ImageEnhance, ImageFilter, ImageGrab,
+                   ImageTk)
 
 from .theme import DUBINA, MENTA, SMARAGD, TIRKIZ, ZELENA, hx
 
 SS = 4              # supersampling za glatke ivice
 _poz_kes = {}
 _ikone = {}
+_ekran = None       # snimak radne povrsine ispod prozora
+
+
+def uslikaj_ekran():
+    """Snimi radnu povrsinu — to je ono sto ce se videti kroz staklo.
+
+    Slika se uzima dok je prozor jos sakriven, pa nema treperenja i na
+    snimku nema nas samih. Posle se samo isecaju delovi po polozaju.
+    """
+    global _ekran
+    try:
+        _ekran = ImageGrab.grab().convert("RGB")
+    except Exception:
+        _ekran = None
+    _poz_kes.clear()
+    return _ekran is not None
+
+
+def _isecak(x, y, w, h):
+    """Deo snimka ispod prozora; van ivica ekrana ide tamna popuna."""
+    platno = Image.new("RGB", (w, h), hx(DUBINA))
+    if _ekran is None:
+        return platno
+    ex, ey = _ekran.size
+    x0, y0 = max(0, x), max(0, y)
+    x1, y1 = min(ex, x + w), min(ey, y + h)
+    if x1 <= x0 or y1 <= y0:
+        return platno
+    platno.paste(_ekran.crop((x0, y0, x1, y1)), (x0 - x, y0 - y))
+    return platno
 
 
 # ---------------------------------------------------------------- pozadina
@@ -37,10 +68,17 @@ def _svoja_slika():
     return None
 
 
-def pozadina(w, h):
-    """Korisnikova slika ako postoji, inace zeleni mesh gradijent."""
-    if (w, h) in _poz_kes:
-        return _poz_kes[(w, h)]
+def pozadina(w, h, x=0, y=0):
+    """Zamucena radna povrsina ispod prozora.
+
+    Redosled: korisnikova slika ako je ostavio, pa snimak ekrana, pa
+    zeleni gradijent ako snimak nije uspeo.
+    """
+    kljuc = (w, h, x, y)
+    if kljuc in _poz_kes:
+        return _poz_kes[kljuc]
+    if len(_poz_kes) > 12:
+        _poz_kes.clear()          # pomeranje prozora bi inace gomilalo slike
 
     svoja = _svoja_slika()
     if svoja is not None:
@@ -48,7 +86,15 @@ def pozadina(w, h):
         im = ImageEnhance.Brightness(im).enhance(0.55)   # da tekst ostane citljiv
         im = _pritamni(im, w, h)
         im = Image.blend(im, Image.effect_noise((w, h), 26).convert("RGB"), 0.02)
-        _poz_kes[(w, h)] = im
+        _poz_kes[kljuc] = im
+        return im
+
+    if _ekran is not None:
+        im = _isecak(x, y, w, h).filter(ImageFilter.GaussianBlur(20))
+        im = ImageEnhance.Color(im).enhance(0.68)
+        im = ImageEnhance.Brightness(im).enhance(0.44)   # tamnije od radne povrsine
+        im = Image.blend(im, Image.effect_noise((w, h), 20).convert("RGB"), 0.02)
+        _poz_kes[kljuc] = im
         return im
 
     mw, mh = max(8, w // 6), max(8, h // 6)
@@ -78,7 +124,7 @@ def pozadina(w, h):
 
     # zrno — bez njega gradijent pravi vidljive trake
     im = Image.blend(im, Image.effect_noise((w, h), 26).convert("RGB"), 0.028)
-    _poz_kes[(w, h)] = im
+    _poz_kes[kljuc] = im
     return im
 
 
@@ -117,8 +163,9 @@ def staklo(poz, x, y, w, h, r, belina=0.07, blur=26, tint=None, tint_jak=0.0,
     w, h = max(1, int(w)), max(1, int(h))
     podloga = poz.crop((x, y, x + w, y + h))
     g = podloga.filter(ImageFilter.GaussianBlur(blur))
-    g = ImageEnhance.Color(g).enhance(1.5)
-    g = ImageEnhance.Brightness(g).enhance(1.30)
+    g = ImageEnhance.Color(g).enhance(0.90)
+    g = ImageEnhance.Brightness(g).enhance(0.86)
+    g = Image.blend(g, Image.new("RGB", (w, h), (0, 0, 0)), 0.18)
 
     if tint and tint_jak:
         g = Image.blend(g, Image.new("RGB", (w, h), hx(tint)), tint_jak)

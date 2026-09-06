@@ -96,6 +96,10 @@ class App(tk.Tk):
         except tk.TclError:
             pass
 
+        # snimak radne povrsine mora pre nego sto se prozor pojavi, da ne
+        # uslikamo sami sebe
+        self.withdraw()
+        draw.uslikaj_ekran()
         self._tamna_traka()
 
         self.izvor = None
@@ -116,8 +120,14 @@ class App(tk.Tk):
         self.generacija = 0
         self._animacija = 0
         self._od_visine = 0
+        self.px, self.py = 0, 0
+        self._animiram = False
+        self._posao_pomeranja = None
+        self._ponovo = self.ekran_izbor
         self.platno = None
         self.ekran_izbor()
+        self.deiconify()
+        self.bind("<Configure>", self._na_pomeranje)
         self._pojavi_se()
         self.after(100, self._pumpa)
 
@@ -148,6 +158,7 @@ class App(tk.Tk):
         except tk.TclError:
             return
         pocetak = time.perf_counter()
+        self._animiram = True
         # sigurnosna kocnica: prozor ne sme da ostane neproziran ako nesto pukne
         self.after(int(trajanje * 1000) + 400,
                    lambda: self.attributes("-alpha", 1.0))
@@ -162,6 +173,7 @@ class App(tk.Tk):
             else:
                 self.geometry(f"{self.W}x{self.H}+{x}+{kraj_y}")
                 self.attributes("-alpha", 1.0)
+                self._animiram = False
 
         korak()
 
@@ -174,6 +186,10 @@ class App(tk.Tk):
             y = max(0, (self.winfo_screenheight() - h) // 2 - s(24))
             self._postavljen = True
             self.geometry(f"{self.W}x{h}+{x}+{y}")
+        else:
+            x, y = self.winfo_x(), self.winfo_y()
+            y = min(y, max(0, self.winfo_screenheight() - h - s(60)))
+        self.px, self.py = x, y
 
     def _zavrsi_visinu(self, trajanje=0.22):
         """Glatko razvlacenje — inace prozor skoci kad se klip ucita.
@@ -183,8 +199,7 @@ class App(tk.Tk):
         platna i preko toga pregazi zadatu geometriju.
         """
         od, do = self._od_visine, self.H
-        x = self.winfo_x()
-        y = min(self.winfo_y(), max(0, self.winfo_screenheight() - do - s(60)))
+        x, y = self.px, self.py
         self._animacija += 1
         oznaka = self._animacija
 
@@ -196,6 +211,7 @@ class App(tk.Tk):
         self.platno.config(height=od)
         self.geometry(f"{self.W}x{od}+{x}+{y}")
         pocetak = time.perf_counter()
+        self._animiram = True
 
         def korak():
             if oznaka != self._animacija:
@@ -209,10 +225,28 @@ class App(tk.Tk):
             else:
                 self.platno.config(height=do)
                 self.geometry(f"{self.W}x{do}+{x}+{y}")
+                self._animiram = False
 
         korak()
 
     # ------------------------------------------------- platno
+
+    def _na_pomeranje(self, e):
+        """Kad se prozor pomeri, kroz staklo mora da se vidi novo mesto."""
+        if e.widget is not self or self._animiram:
+            return
+        if (self.winfo_x(), self.winfo_y()) == (self.px, self.py):
+            return
+        if self._posao_pomeranja:
+            self.after_cancel(self._posao_pomeranja)
+        self._posao_pomeranja = self.after(220, self._osvezi_pozadinu)
+
+    def _osvezi_pozadinu(self):
+        self._posao_pomeranja = None
+        if (self.winfo_x(), self.winfo_y()) == (self.px, self.py):
+            return
+        self.px, self.py = self.winfo_x(), self.winfo_y()
+        self._ponovo()
 
     def _novo_platno(self):
         """Sveže platno i sveža kopija pozadine, spremna za panele."""
@@ -223,7 +257,7 @@ class App(tk.Tk):
         self.platno = tk.Canvas(self, width=self.W, height=self.H,
                                 highlightthickness=0, bd=0, bg="#020705")
         self.platno.pack(fill="both", expand=True)
-        return draw.pozadina(self.W, self.H).copy()
+        return draw.pozadina(self.W, self.H, self.px, self.py).copy()
 
     def _prikazi_bazu(self, baza):
         self.baza = baza
@@ -247,6 +281,7 @@ class App(tk.Tk):
 
     def ekran_izbor(self):
         self.info = None
+        self._ponovo = self.ekran_izbor
         pad, kh, razmak = s(56), s(104), s(16)
         blok = s(54) + s(22) + s(46) + kh + razmak + kh
         self._visina(blok + s(150) * 2)
@@ -365,6 +400,7 @@ class App(tk.Tk):
         return r
 
     def _crtaj_link(self):
+        self._ponovo = self._crtaj_link
         r = self._raspored()
         naziv, _opis, ikona, nagovestaj = PLATFORME[self.izvor]
         pad = r["pad"]
@@ -384,7 +420,7 @@ class App(tk.Tk):
         self._veza(pad, s(40), "‹  Nazad", self.ekran_izbor, boja=TXT2,
                    font=(FAM, 10))
         tekst(p, self.W - pad - s(30), s(45), naziv, (FAM_B, 10), TXT2,
-              sidro="e")
+              sidro="e", senka=True)
 
         self.polje = Polje(p, baza, pad, r["polje_y"], r["polje_w"],
                            r["polje_h"], nagovestaj=nagovestaj)
@@ -400,7 +436,8 @@ class App(tk.Tk):
             self._kvacica(pad, r["kolacici_y"])
 
         self.status_id = tekst(p, pad, r["status_y"], self.poruka_uvod,
-                               (FAM, 9), TXT3, sirina=self.W - pad * 2)
+                               (FAM, 9), TXT3, sirina=self.W - pad * 2,
+                               senka=True)
 
         if self.info:
             self._crtaj_karticu(r)

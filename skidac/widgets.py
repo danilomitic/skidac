@@ -32,8 +32,11 @@ def tekst(platno, x, y, sadrzaj, font, boja=TXT, sidro="nw", sirina=None,
           senka=False):
     """Tekst na platnu; senka=True za naslove direktno na gradijentu."""
     if senka:
-        platno.create_text(x + 1, y + 1, text=sadrzaj, font=font, anchor=sidro,
-                           fill="#03150e", width=sirina)
+        # dva pomeraja daju gusciju senku — tekst na pozadini mora da se drzi
+        # i kad je iza njega svetao deo radne povrsine
+        for dx, dy in ((1, 1), (2, 2)):
+            platno.create_text(x + dx, y + dy, text=sadrzaj, font=font,
+                               anchor=sidro, fill="#05100c", width=sirina)
     return platno.create_text(x, y, text=sadrzaj, font=font, anchor=sidro,
                               fill=boja, width=sirina)
 
@@ -96,9 +99,9 @@ class Dugme(Element):
     STILOVI = {
         # stanje: (belina, tint, jacina tinta, ivica, boja teksta)
         "glavno": {
-            "mirno": (0.10, MENTA, 0.44, 0.34, TXT),
-            "hover": (0.15, MENTA_HI, 0.56, 0.50, TXT),
-            "klik":  (0.05, MENTA, 0.36, 0.26, TXT),
+            "mirno": (0.08, MENTA, 0.58, 0.38, TXT),
+            "hover": (0.13, MENTA_HI, 0.70, 0.55, TXT),
+            "klik":  (0.04, MENTA, 0.50, 0.28, TXT),
             "gasi":  (0.05, None, 0.0, 0.14, TXT3),
         },
         "tiho": {
@@ -154,7 +157,7 @@ class Cip(Element):
 
     def crtaj(self, stanje="mirno"):
         if self.izabran:
-            par = dict(belina=0.11, tint=MENTA, tint_jak=0.42, ivica=0.48)
+            par = dict(belina=0.09, tint=MENTA, tint_jak=0.56, ivica=0.50)
             boja = TXT
         elif stanje == "hover":
             par = dict(belina=0.18, ivica=0.34)
