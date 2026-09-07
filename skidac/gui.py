@@ -344,8 +344,12 @@ class App(tk.Tk):
         self.info = None
         self._ponovo = self.ekran_izbor
         pad, kh, razmak = s(56), s(104), s(16)
-        blok = s(54) + s(22) + s(46) + kh + razmak + kh
-        self._visina(blok + s(150) * 2)
+        # visina se racuna iz stvarnog broja opcija — dok je bila zakucana za
+        # dve kartice, cetvrta je ispadala izvan prozora
+        koliko = len(PLATFORME)
+        blok = (s(54) + s(22) + s(46) + koliko * kh + (koliko - 1) * razmak)
+        self._visina(min(blok + s(96) * 2,
+                         self.winfo_screenheight() - s(130)))
         baza = self._novo_platno()
         kw = self.W - pad * 2
         y = (self.H - blok) // 2
