@@ -93,6 +93,8 @@ def sredi_url(url, izvor):
         return None, "To ne liči na Instagram link."
     if izvor == "sajt" and not re.match(r"^https?://[^/\s.]+\.[^/\s]", url):
         return None, "To ne liči na adresu sajta."
+    if izvor == "lista" and not re.match(r"^https?://[^/\s.]+\.[^/\s]", url):
+        return None, "To ne liči na link."
     return url, None
 
 
@@ -146,6 +148,48 @@ def skini(url, izvor, folder, tip, kvalitet, kolacici=False,
 
     with YoutubeDL(o) as ydl:
         ydl.download([url])
+
+
+# ---------------------------------------------------------------- lista
+
+# U listi ne znamo unapred koje rezolucije svaki klip ima, pa se nudi
+# gornja granica a bira se najbolje sto klip ima do nje.
+GRANICE = (2160, 1440, 1080, 720, 480, 360)
+
+
+def procitaj_listu(url, kolacici=False):
+    """[(url, naslov, trajanje), ...] — cela plejlista ili jedan klip."""
+    o = {"quiet": True, "no_warnings": True}
+    if FFMPEG:
+        o["ffmpeg_location"] = FFMPEG
+    if kolacici:
+        o["cookiesfrombrowser"] = ("chrome",)
+
+    plejlista = "list=" in url or "/playlist" in url
+    o["noplaylist"] = not plejlista
+    if plejlista:
+        o["extract_flat"] = "in_playlist"
+
+    with YoutubeDL(o) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    if info.get("_type") == "playlist":
+        stavke = []
+        for u in info.get("entries") or []:
+            if not u:
+                continue
+            adresa = u.get("url") or u.get("webpage_url")
+            if adresa and not adresa.startswith("http") and u.get("id"):
+                adresa = "https://www.youtube.com/watch?v=" + u["id"]
+            if adresa:
+                stavke.append((adresa, u.get("title") or "Bez naslova",
+                               u.get("duration")))
+        if not stavke:
+            raise RuntimeError("Plejlista je prazna ili nedostupna.")
+        return stavke
+
+    return [(info.get("webpage_url") or url, info.get("title") or "Bez naslova",
+             info.get("duration"))]
 
 
 # ---------------------------------------------------------------- titlovi

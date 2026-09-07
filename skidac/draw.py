@@ -390,6 +390,29 @@ def ikona_sajt(velicina):
     return _ikone[kljuc]
 
 
+def ikona_lista(velicina):
+    """Tri reda sa kvacicama — spisak onoga sto ce se skinuti."""
+    kljuc = ("lista", velicina)
+    if kljuc in _ikone:
+        return _ikone[kljuc]
+    u = velicina * SS
+    im = Image.new("RGBA", (u, u), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([0, 0, u - 1, u - 1], radius=int(u * 0.30),
+                        fill=(120, 96, 232, 255))
+
+    b, lw = (255, 255, 255, 255), max(1, int(u * 0.055))
+    for i, y in enumerate((0.33, 0.50, 0.67)):
+        d.line([(u * 0.44, u * y), (u * 0.76, u * y)], fill=b, width=lw)
+        # kvacica levo od svakog reda
+        d.line([(u * 0.24, u * y), (u * 0.30, u * (y + 0.045))], fill=b,
+               width=lw)
+        d.line([(u * 0.30, u * (y + 0.045)), (u * 0.38, u * (y - 0.06))],
+               fill=b, width=lw)
+    _ikone[kljuc] = im.resize((velicina, velicina), Image.LANCZOS)
+    return _ikone[kljuc]
+
+
 def ikona_instagram(velicina):
     kljuc = ("ig", velicina)
     if kljuc in _ikone:

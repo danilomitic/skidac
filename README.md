@@ -5,7 +5,7 @@ Desktop aplikacija za Windows — skida video sa YouTube-a i Instagrama kao MP4 
 ## Kako se koristi
 
 1. Pokreni `Skidac.exe`
-2. Izaberi **YouTube**, **Instagram** ili **Sajt**
+2. Izaberi **YouTube**, **Instagram**, **Sajt** ili **Lista**
 3. Nalepi link i klikni **Proveri**
 4. Izaberi sta hoces:
    - **MP4** — video, rezolucija do 4K
@@ -14,6 +14,20 @@ Desktop aplikacija za Windows — skida video sa YouTube-a i Instagrama kao MP4 
    - kod sajta: koliko strana najvise da skine
 5. **Skini** — folder se otvara sam kad zavrsi. Dok traje, dugme postaje
    **Zaustavi**; sto je do tada skinuto ostaje na disku.
+
+## Lista
+
+Za vise pesama odjednom. Nalepi link, klikni **Dodaj**, pa opet — koliko
+hoces. Moze i cela plejlista: iz jedne se uzima najvise 200 stavki, a
+lista drzi najvise 500. Duplikati se odbijaju sami.
+
+Format i kvalitet vaze za sve u listi. Posto klipovi nemaju iste
+rezolucije, bira se gornja granica (npr. *do 1080p*) i za svaki se uzima
+najbolje sto ima do nje.
+
+Skidanje ide jedno po jedno. Ako jedno ne uspe, ostala se svejedno skinu,
+a na kraju pise koliko ih je proslo i koje nije. Traka pokazuje celu
+listu, tekst pokazuje koja je stavka trenutno na redu.
 
 ## Prepis videa
 

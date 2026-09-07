@@ -34,7 +34,13 @@ PLATFORME = {
                   "https://www.instagram.com/reel/…"),
     "sajt":      ("Sajt", "Ceo sajt za čitanje bez interneta", draw.ikona_sajt,
                   "https://primer.rs"),
+    "lista":     ("Lista", "Dodaj vise linkova pa skini sve odjednom",
+                  draw.ikona_lista, "Nalepi link pa klikni Dodaj"),
 }
+
+VIDLJIVIH = 8          # koliko redova liste se ispisuje
+NAJVISE_ODJEDNOM = 200  # koliko stavki najvise ulazi iz jedne plejliste
+NAJVECA_LISTA = 500
 
 STRANA = (50, 200, 500, 1500)          # ponudjene granice broja strana
 
@@ -109,6 +115,7 @@ class App(tk.Tk):
         self.url = ""
         self.formati = []
         self.jezici = []
+        self.lista = []
         self.tip = "mp4"
         self.kvalitet = None
         self.folder = core.podrazumevani_folder()
@@ -359,10 +366,15 @@ class App(tk.Tk):
 
     def ekran_link(self, izvor):
         self.izvor = izvor
-        self.info = None
         self.url = ""
         self.skida = False
-        self.poruka_uvod = "Kopiraj link i nalepi ga ovde — Ctrl+V."
+        if izvor == "lista":
+            self.info = {"lista": True}     # kartica se vidi i dok je prazna
+            self.tip = "mp4"
+            self.poruka_uvod = "Dodaj koliko hoces linkova, pa skini sve odjednom."
+        else:
+            self.info = None
+            self.poruka_uvod = "Kopiraj link i nalepi ga ovde — Ctrl+V."
         self._crtaj_link()
 
     def prikazi(self, url, info):
@@ -382,6 +394,8 @@ class App(tk.Tk):
     def _opcije_formata(self):
         """Treca opcija — prepis — ima smisla samo tamo gde ima titlova."""
         osnovne = [("MP4  ·  video", "mp4"), ("MP3  ·  zvuk", "mp3")]
+        if self.izvor == "lista":
+            return osnovne
         if self.izvor == "youtube":
             osnovne.append(("TXT  ·  prepis", "txt"))
         return osnovne
@@ -418,7 +432,21 @@ class App(tk.Tk):
         redovi = math.ceil(len(self._stavke()) / 4)
 
         y = r["ky"] + up
-        if self.izvor == "sajt":
+        if self.izvor == "lista":
+            r["y_zaglavlje"] = y
+            y += s(28)
+            r["y_redovi"] = y
+            y += max(1, min(len(self.lista), VIDLJIVIH)) * s(26)
+            if len(self.lista) > VIDLJIVIH:
+                y += s(20)
+            y += s(12)
+            r["y_linija"] = y
+            y += s(20)
+            r["y_nal_format"] = y
+            y += s(16)
+            r["y_segment"] = y
+            y += s(42) + s(20)
+        elif self.izvor == "sajt":
             # sajt nema sličicu ni izbor formata — samo naslov i koliko strana
             r["y_naslov"] = y
             y += s(52)
@@ -481,10 +509,12 @@ class App(tk.Tk):
         self.polje.entry.bind("<Return>", lambda _e: self.proveri())
         if self.url:
             self.polje.postavi(self.url)
+        if self.izvor == "lista":
+            self.after(150, self.polje.fokusiraj)
         self.dug_proveri = Dugme(p, baza, self.W - pad - r["dug_w"],
                                  r["polje_y"], r["dug_w"], r["polje_h"],
-                                 "Proveri", self.proveri, stil="glavno",
-                                 font=(FAM_B, 11))
+                                 "Dodaj" if self.izvor == "lista" else "Proveri",
+                                 self.proveri, stil="glavno", font=(FAM_B, 11))
 
         if self.izvor == "instagram":
             self._kvacica(pad, r["kolacici_y"])
@@ -523,6 +553,8 @@ class App(tk.Tk):
     def _crtaj_karticu(self, r):
         if self.izvor == "sajt":
             return self._kartica_sajta(r)
+        if self.izvor == "lista":
+            return self._kartica_liste(r)
 
         p, baza, info = self.platno, self.baza, self.info
         ux, uw = r["ux"], r["uw"]
@@ -603,6 +635,70 @@ class App(tk.Tk):
         self.napredak_id = tekst(p, ux, r["y_napredak"], "", (FAM, 9), TXT2,
                                  sirina=uw)
 
+    def _kartica_liste(self, r):
+        """Spisak onoga sto ce se skinuti, pa format i kvalitet za sve."""
+        p, baza = self.platno, self.baza
+        ux, uw = r["ux"], r["uw"]
+        broj = len(self.lista)
+
+        tekst(p, ux, r["y_zaglavlje"],
+              "Lista je prazna" if not broj else
+              f"{broj} {'stavka' if broj == 1 else 'stavki'} u listi",
+              (FAM_B, 11), TXT)
+        if broj:
+            self._veza(ux + uw, r["y_zaglavlje"] + s(2), "Isprazni",
+                       self._isprazni_listu, sidro="ne")
+
+        if not broj:
+            tekst(p, ux, r["y_redovi"] + s(4),
+                  "Nalepi link gore i klikni Dodaj. Moze i cela plejlista.",
+                  (FAM, 9), TXT3)
+        else:
+            for i, (_u, naslov, koliko) in enumerate(self.lista[:VIDLJIVIH]):
+                y = r["y_redovi"] + i * s(26)
+                tekst(p, ux, y, f"{i + 1}.", (FAM, 9), TXT3)
+                tekst(p, ux + s(24), y, core.skrati(naslov, 44), (FAM, 10), TXT2)
+                if koliko:
+                    tekst(p, ux + uw - s(28), y, core.trajanje(koliko),
+                          (FAM, 9), TXT3, sidro="ne")
+                self._veza(ux + uw, y, "✕", lambda k=i: self._izbaci(k),
+                           sidro="ne", boja=TXT3, font=(FAM, 10))
+            if broj > VIDLJIVIH:
+                tekst(p, ux, r["y_redovi"] + VIDLJIVIH * s(26) + s(4),
+                      f"… i jos {broj - VIDLJIVIH}", (FAM, 9), TXT3)
+
+        p.create_line(ux, r["y_linija"], ux + uw, r["y_linija"], fill="#22453a")
+
+        opcije = self._opcije_formata()
+        nalepnica(p, ux, r["y_nal_format"], "Format")
+        self.segment = Segment(p, baza, ux, r["y_segment"],
+                               s(140) * len(opcije), s(42), opcije,
+                               self._promeni_tip)
+
+        self.nal_kval_id = nalepnica(p, ux, r["y_nal_kval"], "Kvalitet")
+        self.cip_raspored = (ux, r["y_cipovi"], r["cip_w"], r["cip_h"])
+        self.cipovi = []
+        self._napuni_cipove()
+
+        self._red_foldera(r)
+        self.dug_skini = Dugme(p, baza, ux, r["y_dugme"], uw, s(50),
+                               f"Skini sve ({broj})" if broj else "Skini sve",
+                               self.skini, stil="glavno", font=(FAM_B, 12))
+        self.dug_skini.ukljuci(bool(broj))
+        self.traka = (Traka(p, baza, ux, r["y_traka"], uw, s(6))
+                      if self.skida else None)
+        self.napredak_id = tekst(p, ux, r["y_napredak"], "", (FAM, 9), TXT2,
+                                 sirina=uw)
+
+    def _izbaci(self, i):
+        if 0 <= i < len(self.lista):
+            self.lista.pop(i)
+            self._crtaj_link()
+
+    def _isprazni_listu(self):
+        self.lista = []
+        self._crtaj_link()
+
     def _red_foldera(self, r):
         p, ux, uw = self.platno, r["ux"], r["uw"]
         nalepnica(p, ux, r["y_folder"] + s(4), "Čuvam u")
@@ -625,13 +721,16 @@ class App(tk.Tk):
             return self._status(greska, CRVENA)
         self.dug_proveri.ukljuci(False)
         self.dug_proveri.natpis("Čitam…")
-        self._status("Otvaram sajt…" if self.izvor == "sajt"
-                     else "Tražim podatke o klipu…")
+        self._status({"sajt": "Otvaram sajt…",
+                      "lista": "Čitam link…"}.get(self.izvor,
+                                                  "Tražim podatke o klipu…"))
         threading.Thread(target=self._citaj, args=(url,), daemon=True).start()
 
     def _citaj(self, url):
         try:
-            if self.izvor == "sajt":
+            if self.izvor == "lista":
+                self.red.put(("dodato", core.procitaj_listu(url)))
+            elif self.izvor == "sajt":
                 podaci = sajt.naslov_i_domen(url)
                 self.red.put(("info", (podaci["url"], podaci)))
             else:
@@ -653,6 +752,8 @@ class App(tk.Tk):
     # ============================================= izbori
 
     def _stavke(self):
+        if self.izvor == "lista" and self.tip == "mp4":
+            return [("do %dp" % v, v) for v in core.GRANICE]
         if self.tip == "sajt":
             return [(f"{n} strana", n) for n in STRANA]
         if self.tip == "mp4":
@@ -666,6 +767,8 @@ class App(tk.Tk):
             return 192
         if self.tip == "sajt":
             return STRANA[1]
+        if self.izvor == "lista":
+            return 1080
         return stavke[0][1]
 
     def _napuni_cipove(self):
@@ -722,6 +825,8 @@ class App(tk.Tk):
     def skini(self):
         if self.skida:
             return self._zaustavi()
+        if self.izvor == "lista" and not self.lista:
+            return self._napredak("Lista je prazna.", CRVENA)
         if not os.path.isdir(self.folder):
             return self._napredak("Taj folder ne postoji.", CRVENA)
         if self.tip in ("mp3", "txt") and not core.FFMPEG:
@@ -745,7 +850,9 @@ class App(tk.Tk):
 
     def _skidaj(self):
         try:
-            if self.izvor == "sajt":
+            if self.izvor == "lista":
+                self._skidaj_listu()
+            elif self.izvor == "sajt":
                 self._skidaj_sajt()
             elif self.tip == "txt":
                 put = core.skini_transkript(
@@ -763,6 +870,24 @@ class App(tk.Tk):
             self.red.put(("prekinuto", None))
         except Exception as e:
             self.red.put(("greska", core.poruka(e)))
+
+    def _skidaj_listu(self):
+        """Jedna po jedna; greska na jednoj ne rusi ostatak."""
+        ukupno = len(self.lista)
+        palo = []
+        for i, (url, naslov, _t) in enumerate(list(self.lista)):
+            if self._stani:
+                raise core.Prekid()
+            self._redni, self._ukupno, self._naslov = i, ukupno, naslov
+            try:
+                core.skini(url, "youtube", self.folder, self.tip,
+                           self.kvalitet, self.kolacici,
+                           na_napredak=self._kuka, na_obradu=self._kuka_obrada)
+            except core.Prekid:
+                raise
+            except Exception:
+                palo.append(naslov)
+        self.red.put(("gotova_lista", (ukupno, palo)))
 
     def _skidaj_sajt(self):
         preuzimac = sajt.Preuzimac(
@@ -786,6 +911,8 @@ class App(tk.Tk):
             ukupno = d.get("total_bytes") or d.get("total_bytes_estimate")
             gotovo = d.get("downloaded_bytes") or 0
             pct = (gotovo / ukupno * 100) if ukupno else 0
+            if self.izvor == "lista":
+                return self._napredak_liste(pct, d)
             delovi = [f"{pct:.0f}%",
                       f"{core.velicina(gotovo)} / {core.velicina(ukupno)}"]
             if d.get("speed"):
@@ -795,6 +922,15 @@ class App(tk.Tk):
             self.red.put(("napredak", (pct, "   ·   ".join(delovi))))
         elif d["status"] == "finished":
             self.red.put(("napredak", (100, "Preuzeto — obrađujem fajl…")))
+
+    def _napredak_liste(self, pct, d):
+        """Traka pokazuje celu listu, tekst pokazuje trenutnu stavku."""
+        ceo = (self._redni + pct / 100) / max(1, self._ukupno) * 100
+        delovi = ["%d/%d" % (self._redni + 1, self._ukupno),
+                  core.skrati(self._naslov, 32), "%.0f%%" % pct]
+        if d.get("speed"):
+            delovi.append(core.velicina(d["speed"]) + "/s")
+        self.red.put(("napredak", (ceo, "   \u00b7   ".join(delovi))))
 
     def _kuka_obrada(self, d):
         if d["status"] == "started":
@@ -832,6 +968,23 @@ class App(tk.Tk):
                     self._odblokiraj()
                     self._otvori(self.folder)
 
+                elif vrsta == "dodato":
+                    self._dodaj_u_listu(podatak)
+
+                elif vrsta == "gotova_lista":
+                    ukupno, palo = podatak
+                    if self.traka:
+                        self.traka.postavi(100)
+                    poruka = "\u2713  Gotovo \u2014 skinuto %d/%d." % (
+                        ukupno - len(palo), ukupno)
+                    if palo:
+                        poruka += "  Nije uspelo: " + core.skrati(palo[0], 28)
+                        if len(palo) > 1:
+                            poruka += " i jos %d" % (len(palo) - 1)
+                    self._napredak(poruka, CRVENA if palo else MENTA)
+                    self._odblokiraj()
+                    self._otvori(self.folder)
+
                 elif vrsta == "gotov_sajt":
                     if self.traka:
                         self.traka.postavi(100)
@@ -858,6 +1011,31 @@ class App(tk.Tk):
             traceback.print_exc()
         finally:
             self.after(120, self._pumpa)
+
+    def _dodaj_u_listu(self, stavke):
+        """Plejlista ume da ima na stotine stavki — uzimamo razuman deo."""
+        self.dug_proveri.ukljuci(True)
+        self.dug_proveri.natpis("Dodaj")
+
+        postojeci = {u for u, _n, _t in self.lista}
+        nove = [x for x in stavke[:NAJVISE_ODJEDNOM] if x[0] not in postojeci]
+        mesta = max(0, NAJVECA_LISTA - len(self.lista))
+        odbaceno = len(nove) - mesta
+        nove = nove[:mesta]
+        self.lista.extend(nove)
+
+        if not nove:
+            poruke = ["To je vec u listi."]
+        else:
+            poruke = ["Dodato %d." % len(nove)]
+            if len(stavke) > NAJVISE_ODJEDNOM:
+                poruke.append("Plejlista ima %d, uzeto prvih %d."
+                              % (len(stavke), NAJVISE_ODJEDNOM))
+            if odbaceno > 0:
+                poruke.append("Lista je puna (%d)." % NAJVECA_LISTA)
+        self.poruka_uvod = "  ".join(poruke)
+        self.url = ""
+        self._crtaj_link()
 
     def _stavi_slicicu(self, generacija, im):
         if generacija != self.generacija:
