@@ -758,7 +758,7 @@ class App(tk.Tk):
         self.dug_proveri.natpis("Čitam…")
         self._status({"sajt": "Otvaram sajt…",
                       "lista": "Čitam link…",
-                      "soundcloud": "Čitam sa SoundCloud-a…"}.get(self.izvor,
+                      "soundcloud": "Čitam sa SoundCloud-a… set ume da potraje i pola minuta."}.get(self.izvor,
                                                   "Tražim podatke o klipu…"))
         threading.Thread(target=self._citaj, args=(url,), daemon=True).start()
 

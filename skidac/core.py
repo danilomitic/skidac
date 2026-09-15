@@ -161,6 +161,32 @@ def skini(url, izvor, folder, tip, kvalitet, kolacici=False,
 GRANICE = (2160, 1440, 1080, 720, 480, 360)
 
 
+def _naslov_iz_adrese(adresa):
+    """SoundCloud set u brzom citanju ne salje naslove, pa ga pravimo iz
+    adrese: .../izvodjac/moja-pesma -> "Moja pesma". Pravi naslov ionako
+    ide u ime fajla pri skidanju."""
+    deo = adresa.rstrip("/").split("?")[0].rsplit("/", 1)[-1]
+    if not deo or deo.isdigit() or "%3A" in deo:
+        return "Bez naslova"
+    return deo.replace("-", " ").replace("_", " ").strip().capitalize()
+
+
+def _procitaj_do_kraja(url, kolacici=False, najvise=200):
+    """Puno citanje plejliste — sporije, ali sa pravim naslovima i trajanjem."""
+    o = {"quiet": True, "no_warnings": True, "noplaylist": False,
+         "playlistend": najvise, "ignoreerrors": True}
+    if kolacici:
+        o["cookiesfrombrowser"] = ("chrome",)
+    with YoutubeDL(o) as ydl:
+        info = ydl.extract_info(url, download=False)
+    stavke = []
+    for u in (info or {}).get("entries") or []:
+        if u and (u.get("webpage_url") or u.get("url")):
+            stavke.append((u.get("webpage_url") or u["url"],
+                           u.get("title") or "Bez naslova", u.get("duration")))
+    return stavke
+
+
 def procitaj_listu(url, kolacici=False):
     """[(url, naslov, trajanje), ...] — cela plejlista ili jedan klip."""
     o = {"quiet": True, "no_warnings": True}
@@ -189,10 +215,16 @@ def procitaj_listu(url, kolacici=False):
             if adresa and not adresa.startswith("http") and u.get("id"):
                 adresa = "https://www.youtube.com/watch?v=" + u["id"]
             if adresa:
-                stavke.append((adresa, u.get("title") or "Bez naslova",
+                stavke.append((adresa, u.get("title") or _naslov_iz_adrese(adresa),
                                u.get("duration")))
         if not stavke:
             raise RuntimeError("Plejlista je prazna ili nedostupna.")
+
+        # SoundCloud set u brzom citanju za vecinu pesama ne salje ni naslov
+        # ni citljivu adresu — onda se set cita do kraja, pesma po pesma
+        bez = sum(1 for _a, n, _t in stavke if n == "Bez naslova")
+        if bez and "soundcloud.com" in url.lower():
+            stavke = _procitaj_do_kraja(url, kolacici) or stavke
         return stavke
 
     return [(info.get("webpage_url") or url, info.get("title") or "Bez naslova",
