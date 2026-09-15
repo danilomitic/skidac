@@ -413,6 +413,30 @@ def ikona_lista(velicina):
     return _ikone[kljuc]
 
 
+def ikona_soundcloud(velicina):
+    """Narandzasta kockica sa belim oblakom i talasom zvuka."""
+    kljuc = ("sc", velicina)
+    if kljuc in _ikone:
+        return _ikone[kljuc]
+    u = velicina * SS
+    im = Image.new("RGBA", (u, u), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle([0, 0, u - 1, u - 1], radius=int(u * 0.30),
+                        fill=(255, 102, 26, 255))
+    b = (255, 255, 255, 255)
+    # stubici zvuka levo, sve visi ka oblaku
+    for i, visina in enumerate((0.10, 0.15, 0.20, 0.24)):
+        x = u * (0.18 + i * 0.065)
+        d.rounded_rectangle([x, u * (0.62 - visina), x + u * 0.03, u * 0.62],
+                            radius=int(u * 0.015), fill=b)
+    # oblak desno
+    d.ellipse([u * 0.44, u * 0.34, u * 0.66, u * 0.56], fill=b)
+    d.ellipse([u * 0.58, u * 0.42, u * 0.80, u * 0.62], fill=b)
+    d.rectangle([u * 0.46, u * 0.48, u * 0.70, u * 0.62], fill=b)
+    _ikone[kljuc] = im.resize((velicina, velicina), Image.LANCZOS)
+    return _ikone[kljuc]
+
+
 def ikona_instagram(velicina):
     kljuc = ("ig", velicina)
     if kljuc in _ikone:

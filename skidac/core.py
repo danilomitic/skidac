@@ -95,6 +95,8 @@ def sredi_url(url, izvor):
         return None, "To ne liči na adresu sajta."
     if izvor == "lista" and not re.match(r"^https?://[^/\s.]+\.[^/\s]", url):
         return None, "To ne liči na link."
+    if izvor == "soundcloud" and "soundcloud.com" not in url.lower():
+        return None, "To nije SoundCloud link."
     return url, None
 
 
@@ -165,7 +167,10 @@ def procitaj_listu(url, kolacici=False):
     if kolacici:
         o["cookiesfrombrowser"] = ("chrome",)
 
-    plejlista = "list=" in url or "/playlist" in url
+    # SoundCloud pesma, set i profil izvodjaca idu istim putem: yt-dlp za
+    # pojedinacnu pesmu vrati samu pesmu, a za set ili profil listu stavki
+    plejlista = ("list=" in url or "/playlist" in url
+                 or "soundcloud.com" in url.lower())
     o["noplaylist"] = not plejlista
     if plejlista:
         o["extract_flat"] = "in_playlist"

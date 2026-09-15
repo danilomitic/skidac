@@ -5,7 +5,7 @@ Desktop aplikacija za Windows — skida video sa YouTube-a i Instagrama kao MP4 
 ## Kako se koristi
 
 1. Pokreni `Skidac.exe`
-2. Izaberi **YouTube**, **Instagram**, **Sajt** ili **Lista**
+2. Izaberi **YouTube**, **Instagram**, **Sajt**, **SoundCloud** ili **Lista**
 3. Nalepi link i klikni **Proveri**
 4. Izaberi sta hoces:
    - **MP4** — video, rezolucija do 4K
@@ -28,6 +28,16 @@ najbolje sto ima do nje.
 Skidanje ide jedno po jedno. Ako jedno ne uspe, ostala se svejedno skinu,
 a na kraju pise koliko ih je proslo i koje nije. Traka pokazuje celu
 listu, tekst pokazuje koja je stavka trenutno na redu.
+
+## SoundCloud
+
+Radi kao Lista, samo za SoundCloud i uvek kao MP3. Nalepi pesmu, set
+(`/sets/...`) ili profil izvodjaca (`/izvodjac/tracks`) i klikni
+**Dodaj** — pesma ulazi sama, set i profil sa svim pesmama. Spisak je
+odvojen od obicne Liste, pa se stavke ne mesaju.
+
+SoundCloud daje zvuk od najvise oko 160 kbps, pa MP3 od 320 kbps nece
+zvucati bolje od 192 — samo ce fajl biti veci.
 
 ## Prepis videa
 
