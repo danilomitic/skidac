@@ -1,113 +1,48 @@
 # Skidac
 
-Desktop aplikacija za Windows — skida video sa YouTube-a i Instagrama kao MP4 ili MP3.
+Windows aplikacija za skidanje sa YouTube-a, Instagrama i SoundCloud-a, kao i celih sajtova.
 
-## Kako se koristi
-
-1. Pokreni `Skidac.exe`
-2. Izaberi **YouTube**, **Instagram**, **Sajt**, **SoundCloud** ili **Lista**
-3. Nalepi link i klikni **Proveri**
-4. Izaberi sta hoces:
-   - **MP4** — video, rezolucija do 4K
-   - **MP3** — samo zvuk, do 320 kbps
-   - **TXT** — prepis govora iz titlova (samo YouTube), daje .srt i .txt
-   - kod sajta: koliko strana najvise da skine
-5. **Skini** — folder se otvara sam kad zavrsi. Dok traje, dugme postaje
-   **Zaustavi**; sto je do tada skinuto ostaje na disku.
-
-## Lista
-
-Za vise pesama odjednom. Nalepi link, klikni **Dodaj**, pa opet — koliko
-hoces. Moze i cela plejlista: iz jedne se uzima najvise 200 stavki, a
-lista drzi najvise 500. Duplikati se odbijaju sami.
-
-Format i kvalitet vaze za sve u listi. Posto klipovi nemaju iste
-rezolucije, bira se gornja granica (npr. *do 1080p*) i za svaki se uzima
-najbolje sto ima do nje.
-
-Skidanje ide jedno po jedno. Ako jedno ne uspe, ostala se svejedno skinu,
-a na kraju pise koliko ih je proslo i koje nije. Traka pokazuje celu
-listu, tekst pokazuje koja je stavka trenutno na redu.
-
-## SoundCloud
-
-Radi kao Lista, samo za SoundCloud i uvek kao MP3. Nalepi pesmu, set
-(`/sets/...`) ili profil izvodjaca (`/izvodjac/tracks`) i klikni
-**Dodaj** — pesma ulazi sama, set i profil sa svim pesmama. Spisak je
-odvojen od obicne Liste, pa se stavke ne mesaju.
-
-SoundCloud daje zvuk od najvise oko 160 kbps, pa MP3 od 320 kbps nece
-zvucati bolje od 192 — samo ce fajl biti veci.
-
-## Prepis videa
-
-Koristi titlove koje YouTube vec ima — prvo rucne, pa automatske.
-Ponudjeni su nas jezik, engleski i jezik samog videa. Dobijas dva fajla:
-`.srt` (sa vremenima) i `.txt` (cist tekst). Ako video nema nikakve
-titlove, nema ni prepisa.
-
-## Preuzimanje sajta
-
-Ide u sirinu od zadate adrese, ostaje na istom domenu, snima strane i ono
-sto one koriste (slike, CSS, JS), pa prepravlja linkove da pokazuju na
-lokalne fajlove — sajt se posle otvara duplim klikom na `index.html`,
-bez interneta.
-
-Ponasa se pristojno: cita `robots.txt` i preskace sto je zabranjeno, pravi
-pauzu izmedju zahteva, predstavlja se u User-Agent-u i ima granicu broja
-strana. Nije alat za obaranje tudjeg servera. Strane preko granice se ne
-otvaraju, pa linkovi ka njima ostaju neispunjeni.
-
-Instagram objave koje traze prijavu: cekiraj opciju za kolacice iz Chrome-a
-(moras biti ulogovan na Instagram u Chrome-u).
-
-## Izgled
-
-Prozor je stvarno providan. Pikseli boje `KLJUC` (theme.py) postaju rupa
-u prozoru, a Windows iza nje radi zivi blur (acrylic). Ostatak prozora
-ide na 93% neprozirnosti, pa se i kroz panele malo vidi sta je iza.
-Vidi se sve sto je stvarno iza — druga aplikacija, video, bilo sta — i
-menja se uzivo.
-
-**Cena:** kroz providne delove klik prolazi na aplikaciju ispod. Kartice i
-dugmad rade normalno, ali prozor se pomera samo za naslovnu traku. To je
-kako Windows radi sa kljucnom bojom i ne moze da se zaobidje bez gubitka
-providnosti.
-
-Ako sistem ne podrzava providnost, vraca se na crtanu pozadinu: tapeta
-(citana iz Windows-a, sa stilom prikaza), pa snimak radne povrsine, pa
-zeleni gradijent.
-
-Paneli su namerno TAMNIJI od radne povrsine ispod sebe. Da su svetliji,
-beli tekst bi nestao cim je iza nesto svetlo.
-
-Ako umesto radne povrsine hoces svoju sliku, stavi `pozadina.png` (ili
-.jpg) pored `Skidac.exe` — najmanje 1400x1600 px, uspravna ili kvadratna.
-Ako snimak ekrana ne uspe, vraca se na zeleni gradijent.
-
-## Kako je slozeno
-
-```
-app.py              ulazna tacka (DPI + pokretanje)
-skidac/theme.py     boje, fontovi, skaliranje na DPI
-skidac/draw.py      gradijent pozadine, staklo, senke, ikonice
-skidac/widgets.py   kontrole nacrtane na platnu (dugme, cip, segment...)
-skidac/core.py      sve oko yt-dlp i fajlova, bez ijednog widgeta
-skidac/sajt.py      obilazak i preuzimanje celog sajta
-skidac/gui.py       dva ekrana i njihova logika
-```
-
-## Build
-
-```
-pip install -r requirements.txt
-build.bat
-```
-
-`build.bat` ocekuje `ffmpeg.exe` u istom folderu (Windows build sa
-https://www.gyan.dev/ffmpeg/builds/). Gotov `.exe` je u `dist/`.
+![Početni ekran](docs/1-pocetak.png)
 
 ## Instalacija
 
-`install.bat` kopira `dist\Skidac.exe` u `%LOCALAPPDATA%\Programs\Skidac`
-i pravi precice na Desktopu i u Start meniju.
+1. Pokreni `build.bat` pa `install.bat`
+2. Na Desktopu se pojavi ikonica **Skidac**
+
+## YouTube
+
+Nalepi link, klikni **Proveri**, izaberi format i klikni **Skini**.
+
+- **MP4** — video, do 4K
+- **MP3** — samo zvuk
+- **TXT** — tekst govora iz videa (samo ako video ima titlove)
+
+![YouTube](docs/2-youtube.png)
+
+## YouTube lista
+
+Za više klipova odjednom. Nalepi link i klikni **Dodaj**, pa ponovi. Može i cela plejlista. Na kraju klikni **Skini sve**.
+
+![YouTube lista](docs/3-youtube-lista.png)
+
+## SoundCloud lista
+
+Isto kao YouTube lista, samo za SoundCloud. Nalepi pesmu, set ili profil izvođača. Sve se skida kao MP3.
+
+![SoundCloud lista](docs/4-soundcloud-lista.png)
+
+## Instagram
+
+Nalepi link reel-a ili objave. Ako objava traži prijavu, uključi **kolačiće iz Chrome-a** (moraš biti ulogovan u Chrome-u).
+
+## Sajt
+
+Skida ceo sajt da može da se otvori bez interneta. Izaberi koliko strana najviše, pa **Skini sajt**. Sajt se posle otvara preko `index.html`.
+
+![Sajt](docs/5-sajt.png)
+
+## Dobro je znati
+
+- Folder za čuvanje menjaš klikom na **Promeni**.
+- Dok skidanje traje, dugme postaje **Zaustavi**. Ono što je već skinuto ostaje.
+- Prozor je providan, pa klik kroz prazan deo pada na program ispod. Prozor pomeraš za gornju traku.
