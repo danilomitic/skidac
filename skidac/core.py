@@ -93,10 +93,12 @@ def sredi_url(url, izvor):
         return None, "To ne liči na Instagram link."
     if izvor == "sajt" and not re.match(r"^https?://[^/\s.]+\.[^/\s]", url):
         return None, "To ne liči na adresu sajta."
-    if izvor == "lista" and not re.match(r"^https?://[^/\s.]+\.[^/\s]", url):
-        return None, "To ne liči na link."
+    if izvor == "lista" and "soundcloud.com" in url.lower():
+        return None, "To je SoundCloud link — dodaj ga u SoundCloud listu."
+    if izvor == "lista" and not re.search(r"(youtube\.com|youtu\.be)/", url):
+        return None, "YouTube lista prima samo YouTube linkove."
     if izvor == "soundcloud" and "soundcloud.com" not in url.lower():
-        return None, "To nije SoundCloud link."
+        return None, "SoundCloud lista prima samo SoundCloud linkove."
     return url, None
 
 

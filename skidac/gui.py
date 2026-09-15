@@ -33,13 +33,14 @@ PLATFORME = {
                   "https://www.youtube.com/watch?v=…"),
     "instagram": ("Instagram", "Reels, objave, IGTV", draw.ikona_instagram,
                   "https://www.instagram.com/reel/…"),
+    "lista":     ("YouTube lista", "Više klipova ili cela plejlista odjednom",
+                  draw.ikona_lista,
+                  "YouTube klip ili plejlista, pa klikni Dodaj"),
+    "soundcloud": ("SoundCloud lista", "Pesme, setovi i profili izvođača",
+                   draw.ikona_soundcloud,
+                   "SoundCloud pesma, set ili profil, pa klikni Dodaj"),
     "sajt":      ("Sajt", "Ceo sajt za čitanje bez interneta", draw.ikona_sajt,
                   "https://primer.rs"),
-    "soundcloud": ("SoundCloud", "Pesme, plejliste i profili izvođača",
-                   draw.ikona_soundcloud,
-                   "https://soundcloud.com/izvodjac/pesma ili /sets/…"),
-    "lista":     ("Lista", "Dodaj vise linkova pa skini sve odjednom",
-                  draw.ikona_lista, "Nalepi link pa klikni Dodaj"),
 }
 
 LISTE = ("lista", "soundcloud")   # izvori koji rade kao spisak za skidanje
@@ -386,12 +387,12 @@ class App(tk.Tk):
             self.lista = self._liste.setdefault(izvor, [])
             if izvor == "soundcloud":
                 self.tip = "mp3"
-                self.poruka_uvod = ("Pesma, set ili ceo profil — sve ulazi u "
-                                    "spisak i skida se kao MP3.")
+                self.poruka_uvod = ("Samo SoundCloud — pesma, set ili ceo "
+                                    "profil, sve se skida kao MP3.")
             else:
                 self.tip = "mp4"
-                self.poruka_uvod = ("Dodaj koliko hoces linkova, pa skini sve "
-                                    "odjednom.")
+                self.poruka_uvod = ("Samo YouTube — pojedinacni klipovi ili "
+                                    "cele plejliste, pa sve odjednom.")
         else:
             self.info = None
             self.poruka_uvod = "Kopiraj link i nalepi ga ovde — Ctrl+V."
@@ -679,7 +680,9 @@ class App(tk.Tk):
 
         if not broj:
             tekst(p, ux, r["y_redovi"] + s(4),
-                  "Nalepi link gore i klikni Dodaj. Moze i cela plejlista.",
+                  ("Nalepi SoundCloud pesmu, set ili profil gore i klikni "
+                   "Dodaj." if self.izvor == "soundcloud" else
+                   "Nalepi YouTube klip ili plejlistu gore i klikni Dodaj."),
                   (FAM, 9), TXT3)
         else:
             for i, (_u, naslov, koliko) in enumerate(self.lista[:VIDLJIVIH]):
@@ -689,6 +692,7 @@ class App(tk.Tk):
                 if koliko:
                     tekst(p, ux + uw - s(28), y, core.trajanje(koliko),
                           (FAM, 9), TXT3, sidro="ne")
+
                 self._veza(ux + uw, y, "✕", lambda k=i: self._izbaci(k),
                            sidro="ne", boja=TXT3, font=(FAM, 10))
             if broj > VIDLJIVIH:
