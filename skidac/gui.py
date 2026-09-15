@@ -18,6 +18,7 @@ import traceback
 import tkinter as tk
 import urllib.request
 from tkinter import filedialog
+from tkinter import font as tkfont
 
 from PIL import Image, ImageTk
 
@@ -82,6 +83,7 @@ class KarticaPlatforme(Element):
         self._postavi(self._slika(stanje))
         self.p.itemconfig(self.strelica_id,
                           fill=MENTA if stanje == "hover" else TXT3)
+        self.prikaci(self.naslov_id, self.opis_id, self.strelica_id)
         for i in (self.naslov_id, self.opis_id, self.strelica_id):
             self.p.tag_raise(i)
 
@@ -433,7 +435,7 @@ class App(tk.Tk):
         y = r["polje_y"] + r["polje_h"] + s(18)
         if self.izvor == "instagram":
             r["kolacici_y"] = y
-            y += s(26)
+            y += s(42)
         r["status_y"] = y
         y += s(30)
 
@@ -520,8 +522,7 @@ class App(tk.Tk):
         p = self.platno
 
         # --- zaglavlje
-        self._veza(pad, s(40), "‹  Nazad", self.ekran_izbor, boja=TXT2,
-                   font=(FAM, 10))
+        self._pilula(pad, s(28), "‹  Nazad", self.ekran_izbor)
         tekst(p, self.W - pad - s(30), s(45), naziv, (FAM_B, 10), TXT2,
               sidro="e", senka=True)
 
@@ -550,24 +551,30 @@ class App(tk.Tk):
             self.after(150, self.polje.fokusiraj)
         self._zavrsi_visinu()
 
+    def _pilula(self, x, y, sadrzaj, komanda, visina=None):
+        """Malo stakleno dugme sa sirinom po tekstu.
+
+        Tekst koji stoji direktno na providnoj pozadini ne moze pouzdano da
+        se klikne — izmedju slova je rupa u prozoru i klik prolazi kroz nju.
+        """
+        font = (FAM, 10)
+        sirina = tkfont.Font(font=font).measure(sadrzaj) + s(30)
+        return Dugme(self.platno, self.baza, x, y, sirina, visina or s(34),
+                     sadrzaj, komanda, stil="tiho", font=font)
+
     def _kvacica(self, x, y):
         """Prekidač za kolačiće — sitan, samo za Instagram."""
+        def natpis():
+            return (("●  " if self.kolacici else "○  ") +
+                    "Objava traži prijavu — uzmi kolačiće iz Chrome-a")
+
         def prebaci():
             self.kolacici = not self.kolacici
-            self.platno.itemconfig(self.kv_id,
-                                   text="●" if self.kolacici else "○",
-                                   fill=MENTA if self.kolacici else TXT3)
-        self.kv_id = tekst(self.platno, x, y, "●" if self.kolacici else "○",
-                           (FAM, 10), MENTA if self.kolacici else TXT3)
-        opis = self._veza(x + s(18), y + s(1),
-                          "Objava traži prijavu — uzmi kolačiće iz Chrome-a",
-                          prebaci, boja=TXT3, font=(FAM, 9))
-        self.platno.tag_bind(self.kv_id, "<Button-1>", lambda _e: prebaci())
-        self.platno.tag_bind(self.kv_id, "<Enter>",
-                             lambda _e: self.platno.config(cursor="hand2"))
-        self.platno.tag_bind(self.kv_id, "<Leave>",
-                             lambda _e: self.platno.config(cursor=""))
-        return opis
+            self.kv_dugme.natpis(natpis())
+
+        # sirina se meri po duzem stanju, da se dugme ne menja pri kliku
+        self.kv_dugme = self._pilula(x, y, natpis(), prebaci)
+        return self.kv_dugme
 
     # ============================================= kartica sa klipom
 

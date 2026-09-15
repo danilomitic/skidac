@@ -68,7 +68,25 @@ class Element:
             self.p.config(cursor="hand2")
             self.crtaj("hover")
 
+    def prikaci(self, *stavke):
+        """Tekst i ostali delovi elementa primaju isti klik kao slika."""
+        for stavka in stavke:
+            if stavka is not None:
+                self.p.addtag_withtag(self.oznaka, stavka)
+
+    def mis_je_iznad(self):
+        """Prelaz sa slike na tekst istog dugmeta nije izlazak iz dugmeta."""
+        try:
+            x = self.p.winfo_pointerx() - self.p.winfo_rootx()
+            y = self.p.winfo_pointery() - self.p.winfo_rooty()
+            return any(self.oznaka in self.p.gettags(i)
+                       for i in self.p.find_overlapping(x, y, x, y))
+        except Exception:
+            return False
+
     def _izlaz(self, _e=None):
+        if self.mis_je_iznad():
+            return
         self.p.config(cursor="")
         if self.ukljuceno:
             self.crtaj("mirno")
@@ -80,6 +98,7 @@ class Element:
         raise NotImplementedError
 
     def _postavi(self, slika, boja_teksta=None):
+        self.prikaci(self.tekst_id)
         self.p.itemconfig(self.slika_id, image=slika)
         self.slika = slika                       # referenca, da GC ne pojede
         if self.tekst_id is not None and boja_teksta:
@@ -200,6 +219,7 @@ class Segment(Element):
             tekst(platno, int(x + w / n * (i + 0.5)), y + h // 2, lab,
                   (FAM_B, 10), sidro="center")
             for i, (lab, _v) in enumerate(opcije)]
+        self.prikaci(*self.natpisi)
         self.crtaj()
 
     def crtaj(self, stanje="mirno"):
@@ -222,7 +242,8 @@ class Segment(Element):
         self.p.config(cursor="hand2")
 
     def _izlaz(self, _e=None):
-        self.p.config(cursor="")
+        if not self.mis_je_iznad():
+            self.p.config(cursor="")
 
     def _klik(self, e):
         n = len(self.opcije)
