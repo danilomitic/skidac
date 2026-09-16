@@ -4,10 +4,31 @@ Windows aplikacija za skidanje sa YouTube-a, Instagrama i SoundCloud-a, kao i ce
 
 ![Početni ekran](docs/1-pocetak.png)
 
-## Instalacija
+## Skidanje i instalacija
 
-1. Pokreni `build.bat` pa `install.bat`
-2. Na Desktopu se pojavi ikonica **Skidac**
+**[⬇ Skini Skidac.exe](https://github.com/danilomitic/ytconverter/releases/latest)**
+
+1. Klikni na link gore i skini `Skidac.exe`
+2. Dupli klik na fajl — aplikacija se odmah pokreće, ništa se ne instalira
+3. Ako želiš ikonicu na Desktopu: desni klik na `Skidac.exe` → *Pošalji na* → *Radna površina*
+
+Nije potreban Python ni bilo šta drugo — sve je unutar tog jednog fajla.
+
+**Windows će pri prvom pokretanju prikazati plavi ekran „Windows protected your PC".**
+To je zato što fajl nije digitalno potpisan (potpis se plaća), a ne zato što je nešto
+sporno. Klikni **More info** pa **Run anyway**.
+
+Provera da je fajl ispravan (opciono) — u PowerShell-u:
+
+```powershell
+Get-FileHash Skidac.exe -Algorithm SHA256
+```
+
+Mora da ispadne: `48e9f59f4aff37a959c5566e1e6a9a6dd4cdfbc8feaf313b7e97a481377a6ec7`
+
+### Za pravljenje iz koda
+
+Pokreni `build.bat` pa `install.bat` (traži Python i `ffmpeg.exe` u folderu).
 
 ## YouTube
 
